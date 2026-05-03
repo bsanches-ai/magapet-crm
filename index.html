@@ -2543,8 +2543,8 @@ function abrirFichaPet(pet, tutorNome) {
         <div class="ficha-name">${pet.nome}</div>
         <div class="ficha-phone">${pet.raca || ''}${pet.especie ? ' · ' + pet.especie : ''}</div>
       </div>
-      <button class="btn btn-adicional" style="margin-left:auto;" onclick='editarPet(${JSON.stringify(pet)}, "${tutorNome}")'>✏️ Editar</button>
-      <button class="btn" style="background:#fef0ee;color:#d95f52;border:1px solid #d95f52;" onclick='confirmarRemoverPet("${pet.id}", "${pet.nome}")'>🗑️</button>
+      <button class="btn btn-adicional" style="margin-left:auto;" onclick="editarPetPorId('${pet.id}', '${tutorNome}')">✏️ Editar</button>
+      <button class="btn" style="background:#fef0ee;color:#d95f52;border:1px solid #d95f52;" onclick="confirmarRemoverPet('${pet.id}', '${pet.nome}')">🗑️</button>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:600px;margin-bottom:20px;">
@@ -2913,6 +2913,20 @@ async function confirmarRemoverPet(petId, petNome) {
     abrirFicha(clienteAtualFicha);
   }
   showToast(`${petNome} removido ✓`, 'success');
+}
+
+function editarPetPorId(petId, tutorNome) {
+  // Busca o pet nos dados locais
+  let pet = null;
+  for (const c of todosClientes) {
+    const found = c.pets?.find(p => p.id === petId);
+    if (found) { pet = found; break; }
+  }
+  if (!pet && clienteAtualFicha) {
+    pet = clienteAtualFicha.pets?.find(p => p.id === petId);
+  }
+  if (!pet) { showToast('Pet não encontrado', 'error'); return; }
+  editarPet(pet, tutorNome);
 }
 
 function editarPet(pet, tutorNome) {
