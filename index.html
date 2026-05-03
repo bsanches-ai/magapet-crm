@@ -1927,6 +1927,13 @@ async function salvarEdicaoAgendamento() {
     return;
   }
 
+  // Verifica se mudou data ou horário para decidir se manda msg
+  const dataAtual = agEmEdicao?.data_hora?.split('T')[0];
+  const d2 = new Date(agEmEdicao?.data_hora);
+  const spH = (d2.getUTCHours() - 3 + 24) % 24;
+  const horarioAtual = String(spH).padStart(2,'0') + ':00';
+  const mudouDataHorario = data !== dataAtual || horario !== horarioAtual;
+
   try {
     await fetch(`${N8N_ATENDIMENTO}/reagendar`, {
       method: 'POST',
@@ -1939,25 +1946,32 @@ async function salvarEdicaoAgendamento() {
         pet_id: petId,
         pet_nome: petNome,
         tutor_telefone: telefone,
-        tutor_nome: tutorNome
+        tutor_nome: tutorNome,
+        notificar_tutor: mudouDataHorario
       }),
       signal: undefined
     });
   } catch {}
 
-  // Atualiza localmente
+  // Atualiza localmente imediatamente
   if (agEmEdicao) {
-    agEmEdicao.data_hora = `${data}T${horario}:00`;
+    const [h, m] = horario.split(':');
+    const utcH = (parseInt(h) + 3) % 24;
+    agEmEdicao.data_hora = `${data}T${String(utcH).padStart(2,'0')}:${m}:00+00:00`;
     agEmEdicao.hora = horario;
     agEmEdicao.servico = servico;
     agEmEdicao.servico_nome = servico;
     if (petId) agEmEdicao.pet_id = petId;
-    if (petNome) agEmEdicao.pet_nome = petNome;
+    if (petNome && petNome !== 'Selecione...') agEmEdicao.pet_nome = petNome;
   }
 
   closeModal('modalEditarAgendamento');
-  showToast('Agendamento atualizado! Tutor notificado ✓', 'success');
-  await loadAgenda();
+  const toastMsg = mudouDataHorario ? 'Agendamento atualizado! Tutor notificado ✓' : 'Agendamento atualizado ✓';
+  showToast(toastMsg, 'success');
+  renderAgenda();
+
+  // Recarrega do servidor após 2s
+  setTimeout(() => loadAgenda(), 2000);
 }
 
 async function confirmarCancelamento(id, petNome, tutor_telefone, tutorNome) {
