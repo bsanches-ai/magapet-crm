@@ -1646,6 +1646,13 @@ function updateSummary() {
 }
 
 
+const ADICIONAL_PRECOS = {
+  'Hidratação / Cardin': 35,
+  'Tosa higiênica comum': 25,
+  'Tosa higiênica clean': 35,
+  'Higiene bucal': 5
+};
+
 const DURACAO_SERVICO = {
   'banho': {
     'PP': 45, 'P': 60, 'M pelo curto': 60, 'M pelo longo': 90,
@@ -1732,7 +1739,7 @@ function abrirAdicional(id) {
   ];
   // Pega adicionais já adicionados nesse card
   const ag = agendamentos.find(a => a.id === id);
-  const jaAdicionados = ag?.adicionais || [];
+  const jaAdicionados = (ag?.adicionais || []).map(a => typeof a === 'string' ? a : a.nome);
 
   document.getElementById('adicionalList').innerHTML = adicionais.map((a, i) => {
     const jaAdicionado = jaAdicionados.includes(a.nome);
@@ -1772,7 +1779,7 @@ async function confirmarAdicional() {
     } catch {}
     if (ag) {
       ag.adicionais = ag.adicionais || [];
-      ag.adicionais.push(adicional.nome);
+      ag.adicionais.push({ nome: adicional.nome, preco: adicional.preco });
       ag.adicionais_valor = (ag.adicionais_valor || 0) + adicional.preco;
     }
   }
