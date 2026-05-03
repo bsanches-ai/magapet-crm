@@ -1931,6 +1931,8 @@ async function buscarPrecoServico(servicoNome) {
         const PRECO_PORTE = { 'PP': 'preco_pp', 'P': 'preco_p', 'M pelo curto': 'preco_m_pelo_curto', 'M pelo longo': 'preco_m_pelo_longo', 'G': 'preco_g', 'Golden/Bordier': 'preco_golden', 'Premium': 'preco_premium_a_partir' };
         const col = PRECO_PORTE[agEmEdicao.pet_porte];
         agEmEdicao.valor = col ? (s[col] || 0) : 0;
+        agEmEdicao.servico = servicoNome;
+        renderAgenda();
       }
     }
   } catch(e) {
