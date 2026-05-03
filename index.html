@@ -2096,6 +2096,8 @@ async function salvarEdicaoAgendamento() {
         servico_nome: servico,
         pet_id: petId,
         pet_nome: petNome,
+        pet_porte: agEmEdicao?.pet_porte || '',
+        valor_total: agEmEdicao?.valor || null,
         tutor_telefone: telefone,
         tutor_nome: tutorNome,
         notificar_tutor: mudouDataHorario
@@ -2114,9 +2116,7 @@ async function salvarEdicaoAgendamento() {
     agEmEdicao.servico_nome = servico;
     if (petId) agEmEdicao.pet_id = petId;
     if (petNome && petNome !== 'Selecione...') agEmEdicao.pet_nome = petNome;
-
-    // Recalcula valor com novo serviço via n8n (já feito no onchange)
-
+    // valor já foi atualizado pelo buscarPrecoServico no onchange
   }
 
   closeModal('modalEditarAgendamento');
