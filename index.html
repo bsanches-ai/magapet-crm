@@ -1963,6 +1963,25 @@ async function salvarEdicaoAgendamento() {
     agEmEdicao.servico_nome = servico;
     if (petId) agEmEdicao.pet_id = petId;
     if (petNome && petNome !== 'Selecione...') agEmEdicao.pet_nome = petNome;
+
+    // Recalcula valor com novo serviço
+    try {
+      const res = await fetch(`https://asiybcvdbbooyscirycw.supabase.co/rest/v1/tenant_servicos?tenant_id=eq.${TENANT_ID}&nome=ilike.*${encodeURIComponent(servico)}*&select=id,nome,preco_pp,preco_p,preco_m_pelo_curto,preco_m_pelo_longo,preco_g,preco_golden,preco_premium_a_partir&limit=1`, {
+        headers: {
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzaXliY3ZkYmJvb3lzY2lyeWN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMTUxNTMsImV4cCI6MjA1ODU5MTE1M30.yqukiMa2kDMPYGlmzdaQdkuNvDmlzMhHMNJGf5PJNBU',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzaXliY3ZkYmJvb3lzY2lyeWN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMTUxNTMsImV4cCI6MjA1ODU5MTE1M30.yqukiMa2kDMPYGlmzdaQdkuNvDmlzMhHMNJGf5PJNBU'
+        }
+      });
+      if (res.ok) {
+        const servicos = await res.json();
+        if (servicos.length) {
+          agEmEdicao._servico_precos = servicos[0];
+          const PRECO_PORTE = { 'PP': 'preco_pp', 'P': 'preco_p', 'M pelo curto': 'preco_m_pelo_curto', 'M pelo longo': 'preco_m_pelo_longo', 'G': 'preco_g', 'Golden/Bordier': 'preco_golden', 'Premium': 'preco_premium_a_partir' };
+          const col = PRECO_PORTE[agEmEdicao.pet_porte];
+          agEmEdicao.valor = col ? (servicos[0][col] || 0) : 0;
+        }
+      }
+    } catch {}
   }
 
   closeModal('modalEditarAgendamento');
@@ -1972,6 +1991,22 @@ async function salvarEdicaoAgendamento() {
 
   // Recarrega do servidor após 2s
   setTimeout(() => loadAgenda(), 2000);
+}
+
+async function removerAdicional(id, nome, preco) {
+  const ag = agendamentos.find(a => a.id === id);
+  if (!ag) return;
+  try {
+    await fetch(`${N8N_ATENDIMENTO}/remover-adicional`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: id, nome })
+    });
+  } catch {}
+  ag.adicionais = ag.adicionais.filter(a => (typeof a === 'string' ? a : a.nome) !== nome);
+  ag.adicionais_valor = Math.max(0, (ag.adicionais_valor || 0) - preco);
+  showToast(`${nome} removido ✓`, 'success');
+  renderAgenda();
 }
 
 async function confirmarCancelamento(id, petNome, tutor_telefone, tutorNome) {
