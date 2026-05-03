@@ -1356,6 +1356,33 @@ let currentPetId = null;
 let selectedAdicional = null;
 let clienteAtual = null;
 
+// Config do tenant (carregada do banco)
+let CAPACIDADE_DIA = {
+  0: { banho: 2, tosa: 2 },
+  1: { banho: 1, tosa: 1 },
+  2: { banho: 1, tosa: 1 },
+  3: { banho: 2, tosa: 0 },
+  4: { banho: 2, tosa: 1 },
+  5: { banho: 2, tosa: 2 },
+  6: { banho: 2, tosa: 2 },
+};
+let HORARIO_FUNCIONAMENTO = {
+  0: { ini: 9, fim: 16 },
+  1: { ini: 9, fim: 18 },
+  2: { ini: 9, fim: 18 },
+  3: { ini: 9, fim: 18 },
+  4: { ini: 9, fim: 18 },
+  5: { ini: 9, fim: 18 },
+  6: { ini: 9, fim: 18 },
+};
+let FERIADOS = [];
+let CAPACIDADE_FERIADO = { banho: 2, tosa: 2 };
+let HORARIO_FERIADO = { ini: 9, fim: 16 };
+let SERVICOS_TENANT = [];
+let ADICIONAIS_TENANT = [];
+let GOOGLE_LINK_CONFIG = 'https://share.google/ChXCIpXGSeRs3jyMF';
+let INSTAGRAM_CONFIG = '@MagaPet.oficial';
+
 // =====================
 // UTILS
 // =====================
@@ -1430,6 +1457,106 @@ function updateDateDisplay() {
 }
 
 // =====================
+// CONFIG
+// =====================
+async function loadConfig() {
+  try {
+    const res = await fetch(`${N8N_LEITURA}/config?tenant_id=${TENANT_ID}`);
+    if (res.ok) {
+      const raw = await res.json();
+      const configs = Array.isArray(raw) ? raw : [];
+      configs.forEach(c => {
+        const val = typeof c.valor === 'string' ? JSON.parse(c.valor) : c.valor;
+        if (c.chave === 'capacidade_dia') {
+          CAPACIDADE_DIA = {};
+          Object.keys(val).forEach(k => CAPACIDADE_DIA[parseInt(k)] = val[k]);
+        }
+        if (c.chave === 'horario_funcionamento') {
+          HORARIO_FUNCIONAMENTO = {};
+          Object.keys(val).forEach(k => HORARIO_FUNCIONAMENTO[parseInt(k)] = val[k]);
+        }
+        if (c.chave === 'feriados') FERIADOS = val;
+        if (c.chave === 'capacidade_feriado') CAPACIDADE_FERIADO = val;
+        if (c.chave === 'horario_feriado') HORARIO_FERIADO = val;
+      });
+    }
+  } catch(e) {
+    console.warn('loadConfig error:', e.message);
+  }
+
+  // Carrega serviços
+  try {
+    const res = await fetch(`${N8N_LEITURA}/servicos?tenant_id=${TENANT_ID}`);
+    if (res.ok) {
+      const raw = await res.json();
+      SERVICOS_TENANT = Array.isArray(raw) ? raw.filter(s => !s._empty) : [];
+      renderSelectsServicos();
+    }
+  } catch(e) { console.warn('loadServicos error:', e.message); }
+
+  // Carrega adicionais
+  try {
+    const res = await fetch(`${N8N_LEITURA}/adicionais?tenant_id=${TENANT_ID}`);
+    if (res.ok) {
+      const raw = await res.json();
+      ADICIONAIS_TENANT = Array.isArray(raw) ? raw.filter(s => !s._empty) : [];
+      // Atualiza ADICIONAL_PRECOS dinamicamente
+      ADICIONAIS_TENANT.forEach(a => {
+        ADICIONAL_PRECOS[a.nome] = a.preco_pp || 0;
+      });
+    }
+  } catch(e) { console.warn('loadAdicionais error:', e.message); }
+}
+
+function renderSelectsServicos() {
+  if (!SERVICOS_TENANT.length) return;
+
+  const banho = SERVICOS_TENANT.filter(s => s.categoria === 'banho');
+  const tosa = SERVICOS_TENANT.filter(s => s.categoria === 'tosa');
+  const higiene = SERVICOS_TENANT.filter(s => s.categoria === 'higiene');
+
+  function buildOptions(lista) {
+    return lista.map(s => {
+      const tipo = s.categoria === 'tosa' ? 'tosa' : 'banho';
+      const dur = s.duracao_minutos || 60;
+      return `<option value="${s.nome}" data-tipo="${tipo}" data-dur="${dur}">${s.nome}</option>`;
+    }).join('');
+  }
+
+  // Select encaixe
+  const encaixeEl = document.getElementById('servicoSelect');
+  if (encaixeEl) {
+    encaixeEl.innerHTML = `
+      <option value="">Selecione...</option>
+      <optgroup label="Banho">${buildOptions(banho)}</optgroup>
+      <optgroup label="Banho + Tosa">${buildOptions(tosa)}</optgroup>
+      <optgroup label="Higiene">${buildOptions(higiene)}</optgroup>`;
+  }
+
+  // Select editar agendamento
+  const editEl = document.getElementById('editAg-servico');
+  if (editEl) {
+    editEl.innerHTML = `
+      <option value="">Selecione...</option>
+      <optgroup label="Banho">${buildOptions(banho)}</optgroup>
+      <optgroup label="Banho + Tosa">${buildOptions(tosa)}</optgroup>
+      <optgroup label="Higiene">${buildOptions(higiene)}</optgroup>`;
+  }
+}
+
+function isFeriado(dateStr) {
+  return FERIADOS.includes(dateStr);
+}
+
+function getCapacidadeDia(diaSemana, dateStr) {
+  return isFeriado(dateStr) ? CAPACIDADE_FERIADO : CAPACIDADE_DIA[diaSemana];
+}
+
+function getHorarioDia(diaSemana, dateStr) {
+  return isFeriado(dateStr) ? HORARIO_FERIADO : HORARIO_FUNCIONAMENTO[diaSemana];
+}
+
+// =====================
 // AGENDA
 // =====================
 async function loadAgenda() {
@@ -1462,10 +1589,6 @@ async function loadAgenda() {
   renderAgenda();
   updateSummary();
   loadNotifications();
-}
-
-function getMockData() {
-  return [];
 }
 
 function renderAgenda() {
@@ -1731,7 +1854,7 @@ function abrirAdicional(id) {
   currentCardId = id;
   selectedAdicional = null;
   selectedAdicionais = [];
-  const adicionais = [
+  const adicionais = ADICIONAIS_TENANT.length ? ADICIONAIS_TENANT.map(a => ({ nome: a.nome, preco: a.preco_pp || 0 })) : [
     { nome: 'Hidratação / Cardin', preco: 35 },
     { nome: 'Tosa higiênica comum', preco: 25 },
     { nome: 'Tosa higiênica clean', preco: 35 },
@@ -1864,22 +1987,10 @@ async function atualizarHorariosEdicao() {
   const d = new Date(data + 'T12:00:00');
   const diaSemana = d.getDay();
 
-  const CAPACIDADE_DIA = {
-    0: { banho: 2, tosa: 2 },
-    1: { banho: 1, tosa: 1 },
-    2: { banho: 1, tosa: 1 },
-    3: { banho: 2, tosa: 0 },
-    4: { banho: 2, tosa: 1 },
-    5: { banho: 2, tosa: 2 },
-    6: { banho: 2, tosa: 2 },
-  };
-  const HORARIO_FUNC = {
-    0: { ini: 9, fim: 16 }, 1: { ini: 9, fim: 18 }, 2: { ini: 9, fim: 18 },
-    3: { ini: 9, fim: 18 }, 4: { ini: 9, fim: 18 }, 5: { ini: 9, fim: 18 }, 6: { ini: 9, fim: 18 }
-  };
 
-  const cap = CAPACIDADE_DIA[diaSemana];
-  const func = HORARIO_FUNC[diaSemana];
+
+  const cap = getCapacidadeDia(diaSemana, data);
+  const func = getHorarioDia(diaSemana, data);
   const servicoNome = servicoEl.value.toLowerCase();
   const tipo = servicoNome.includes('tosa') && !servicoNome.includes('higiênica') ? 'tosa' : 'banho';
 
@@ -2087,7 +2198,7 @@ async function marcarEntregue(id) {
     await fetch(`${N8N_ATENDIMENTO}/entregue`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: id, pet_nome: ag.pet_nome, pet_sexo: ag.pet_sexo, tutor_telefone: ag.tutor_telefone, saldo_pacote: ag.saldo_pacote, google_link: GOOGLE_LINK, instagram: INSTAGRAM })
+      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: id, pet_nome: ag.pet_nome, pet_sexo: ag.pet_sexo, tutor_telefone: ag.tutor_telefone, saldo_pacote: ag.saldo_pacote, google_link: GOOGLE_LINK_CONFIG, instagram: INSTAGRAM_CONFIG })
     });
   } catch {}
   ag.status = 'entregue';
@@ -2483,16 +2594,12 @@ async function loadClientes(q = '') {
     if (res.ok) {
       todosClientes = await res.json();
     } else {
-      todosClientes = getMockClientes();
+      todosClientes = [];
     }
   } catch {
-    todosClientes = getMockClientes();
+    todosClientes = [];
   }
   renderClientes(todosClientes);
-}
-
-function getMockClientes() {
-  return [];
 }
 
 function renderClientes(data) {
@@ -3084,25 +3191,7 @@ async function salvarPet() {
 // =====================
 // SLOTS ENCAIXE
 // =====================
-const CAPACIDADE_DIA = {
-  0: { banho: 2, tosa: 2 }, // dom
-  1: { banho: 1, tosa: 1 }, // seg
-  2: { banho: 1, tosa: 1 }, // ter
-  3: { banho: 2, tosa: 0 }, // qua
-  4: { banho: 2, tosa: 1 }, // qui
-  5: { banho: 2, tosa: 2 }, // sex
-  6: { banho: 2, tosa: 2 }, // sab
-};
-
-const HORARIO_FUNCIONAMENTO = {
-  0: { ini: 9, fim: 16 },
-  1: { ini: 9, fim: 18 },
-  2: { ini: 9, fim: 18 },
-  3: { ini: 9, fim: 18 },
-  4: { ini: 9, fim: 18 },
-  5: { ini: 9, fim: 18 },
-  6: { ini: 9, fim: 18 },
-};
+// CAPACIDADE_DIA e HORARIO_FUNCIONAMENTO carregados do banco via loadConfig()
 
 function atualizarHorarios() {
   const dataVal = document.getElementById('dataEncaixe').value;
@@ -3119,8 +3208,8 @@ function atualizarHorarios() {
   const dur = parseInt(opt.dataset.dur || '60');
   const data = new Date(dataVal + 'T12:00:00');
   const diaSemana = data.getDay();
-  const cap = CAPACIDADE_DIA[diaSemana];
-  const func = HORARIO_FUNCIONAMENTO[diaSemana];
+  const cap = getCapacidadeDia(diaSemana, dataVal);
+  const func = getHorarioDia(diaSemana, dataVal);
 
   if (!func) {
     horarioEl.innerHTML = '<option value="">Fechado neste dia</option>';
@@ -3179,9 +3268,9 @@ function atualizarHorarios() {
 // =====================
 document.getElementById('dataEncaixe').value = new Date().toISOString().split('T')[0];
 updateDateDisplay();
-todosClientes = getMockClientes();
-todosAgendamentos = getMockData();
-loadAgenda();
+todosClientes = [];
+todosAgendamentos = [];
+loadConfig().then(() => loadAgenda());
 </script>
 </body>
 </html>
