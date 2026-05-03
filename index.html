@@ -1470,7 +1470,7 @@ function getMockData() {
 
 function renderAgenda() {
   const grid = document.getElementById('cardsGrid');
-  const snorm = { confirmado: 'aguardando', aguardando: 'aguardando', atendendo: 'atendendo', pronto: 'pronto', entregue: 'entregue' };
+  const snorm = { confirmado: 'aguardando', aguardando: 'aguardando', atendendo: 'atendendo', pronto: 'pronto', entregue: 'entregue', cancelado: 'cancelado' };
   const filtered = agendamentos
     .filter(a => a.pet_nome && a.pet_nome !== 'undefined' && a.tutor_nome && a.tutor_nome !== 'undefined')
     .filter(a => {
