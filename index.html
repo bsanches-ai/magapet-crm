@@ -1101,7 +1101,7 @@
       </div>
       <div class="form-group">
         <label class="form-label">Serviço *</label>
-        <select class="modal-input" id="editAg-servico" style="margin:0;" onchange="atualizarHorariosEdicao()">
+        <select class="modal-input" id="editAg-servico" style="margin:0;" onchange="atualizarHorariosEdicao(); buscarPrecoServico(this.value)">
           <option value="">Selecione...</option>
           <optgroup label="Banho">
             <option value="Banho PP (Pincher/Chihuahua/Yorkie)">Banho PP</option>
@@ -1919,6 +1919,25 @@ async function atualizarHorariosEdicao() {
   if (!temDisponivel) horarioEl.innerHTML = '<option value="">Sem vagas disponíveis</option>';
 }
 
+async function buscarPrecoServico(servicoNome) {
+  if (!servicoNome || !agEmEdicao) return;
+  try {
+    const res = await fetch(`${N8N_LEITURA}/buscar-servico?tenant_id=${TENANT_ID}&nome=${encodeURIComponent(servicoNome)}`);
+    if (res.ok) {
+      const raw = await res.json();
+      const s = Array.isArray(raw) ? raw[0] : raw;
+      if (s && s.id) {
+        agEmEdicao._servico_precos = s;
+        const PRECO_PORTE = { 'PP': 'preco_pp', 'P': 'preco_p', 'M pelo curto': 'preco_m_pelo_curto', 'M pelo longo': 'preco_m_pelo_longo', 'G': 'preco_g', 'Golden/Bordier': 'preco_golden', 'Premium': 'preco_premium_a_partir' };
+        const col = PRECO_PORTE[agEmEdicao.pet_porte];
+        agEmEdicao.valor = col ? (s[col] || 0) : 0;
+      }
+    }
+  } catch(e) {
+    console.warn('buscarPrecoServico error:', e.message);
+  }
+}
+
 async function salvarEdicaoAgendamento() {
   const id = document.getElementById('editAg-id').value;
   const data = document.getElementById('editAg-data').value;
@@ -1971,24 +1990,8 @@ async function salvarEdicaoAgendamento() {
     if (petId) agEmEdicao.pet_id = petId;
     if (petNome && petNome !== 'Selecione...') agEmEdicao.pet_nome = petNome;
 
-    // Recalcula valor com novo serviço
-    try {
-      const res = await fetch(`https://asiybcvdbbooyscirycw.supabase.co/rest/v1/tenant_servicos?tenant_id=eq.${TENANT_ID}&nome=ilike.*${encodeURIComponent(servico)}*&select=id,nome,preco_pp,preco_p,preco_m_pelo_curto,preco_m_pelo_longo,preco_g,preco_golden,preco_premium_a_partir&limit=1`, {
-        headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzaXliY3ZkYmJvb3lzY2lyeWN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMTUxNTMsImV4cCI6MjA1ODU5MTE1M30.yqukiMa2kDMPYGlmzdaQdkuNvDmlzMhHMNJGf5PJNBU',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzaXliY3ZkYmJvb3lzY2lyeWN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMTUxNTMsImV4cCI6MjA1ODU5MTE1M30.yqukiMa2kDMPYGlmzdaQdkuNvDmlzMhHMNJGf5PJNBU'
-        }
-      });
-      if (res.ok) {
-        const servicos = await res.json();
-        if (servicos.length) {
-          agEmEdicao._servico_precos = servicos[0];
-          const PRECO_PORTE = { 'PP': 'preco_pp', 'P': 'preco_p', 'M pelo curto': 'preco_m_pelo_curto', 'M pelo longo': 'preco_m_pelo_longo', 'G': 'preco_g', 'Golden/Bordier': 'preco_golden', 'Premium': 'preco_premium_a_partir' };
-          const col = PRECO_PORTE[agEmEdicao.pet_porte];
-          agEmEdicao.valor = col ? (servicos[0][col] || 0) : 0;
-        }
-      }
-    } catch {}
+    // Recalcula valor com novo serviço via n8n (já feito no onchange)
+
   }
 
   closeModal('modalEditarAgendamento');
