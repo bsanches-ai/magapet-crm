@@ -1424,16 +1424,10 @@ async function loadAgenda() {
   const grid = document.getElementById('cardsGrid');
   if (grid) grid.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Carregando...</div></div>';
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(`${N8N_LEITURA}/agenda?tenant_id=${TENANT_ID}&data=${dateStr}`, { signal: controller.signal });
-    clearTimeout(timer);
+    const res = await fetch(`${N8N_LEITURA}/agenda?tenant_id=${TENANT_ID}&data=${dateStr}`);
     if (res.ok) {
       const raw = await res.json();
-      console.log('loadAgenda raw:', JSON.stringify(raw).slice(0,200));
-      // n8n Respond with "All Incoming Items" retorna array de objetos com {json: {...}}
       if (Array.isArray(raw)) {
-        // Pode ser array direto ou array de {json: {...}}
         const first = raw[0];
         if (first && first.json) {
           agendamentos = raw.map(i => i.json).filter(a => !a._empty);
@@ -1445,7 +1439,6 @@ async function loadAgenda() {
       } else {
         agendamentos = [];
       }
-      console.log('agendamentos:', agendamentos.length);
     } else {
       agendamentos = todosAgendamentos.filter(a => a.data_hora === dateStr);
     }
@@ -1942,9 +1935,9 @@ async function salvarEdicaoAgendamento() {
   // Atualiza localmente
   if (agEmEdicao) {
     agEmEdicao.data_hora = `${data}T${horario}:00`;
-    const [h] = horario.split(':');
     agEmEdicao.hora = horario;
     agEmEdicao.servico = servico;
+    agEmEdicao.servico_nome = servico;
     if (petId) agEmEdicao.pet_id = petId;
     if (petNome) agEmEdicao.pet_nome = petNome;
   }
