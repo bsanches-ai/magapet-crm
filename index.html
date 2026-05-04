@@ -1152,8 +1152,9 @@
         </select>
       </div>
       <div class="form-group" id="editAg-pelagemGroup" style="display:none;">
-        <label class="form-label">Pelagem *</label>
+        <label class="form-label">Pelagem</label>
         <select class="modal-input" id="editAg-pelagem" style="margin:0;" onchange="atualizarHorariosEdicao()">
+          <option value="">Não informado</option>
           <option value="curto">Pelo curto</option>
           <option value="longo">Pelo longo</option>
         </select>
@@ -2099,12 +2100,8 @@ async function abrirEdicaoAgendamento(id) {
   const pelagemGroup = document.getElementById('editAg-pelagemGroup');
   const pelagemEl = document.getElementById('editAg-pelagem');
   porteEl.value = agEmEdicao.pet_porte || '';
-  if (agEmEdicao.pet_porte === 'M') {
-    pelagemGroup.style.display = 'flex';
-    pelagemEl.value = agEmEdicao.pet_pelagem || 'curto';
-  } else {
-    pelagemGroup.style.display = 'none';
-  }
+  pelagemEl.value = agEmEdicao.pet_pelagem || '';
+  pelagemGroup.style.display = agEmEdicao.pet_porte ? 'flex' : 'none';
 
   // Preenche select de serviço
   const servicoEl = document.getElementById('editAg-servico');
@@ -2212,11 +2209,8 @@ async function atualizarHorariosEdicao() {
 
 function onPorteEdicaoChange(porte) {
   const pelagemGroup = document.getElementById('editAg-pelagemGroup');
-  if (porte === 'M') {
-    pelagemGroup.style.display = 'flex';
-  } else {
-    pelagemGroup.style.display = 'none';
-  }
+  // Mostra pelagem para todos os portes
+  pelagemGroup.style.display = porte ? 'flex' : 'none';
   if (agEmEdicao) agEmEdicao.pet_porte = porte;
   buscarPrecoServico(document.getElementById('editAg-servico').value);
   atualizarHorariosEdicao();
@@ -2255,10 +2249,7 @@ async function salvarEdicaoAgendamento() {
   const telefone = document.getElementById('editAg-telefone').value;
   const tutorNome = document.getElementById('editAg-tutor-nome').value;
 
-  if (!data || !horario || !servico) {
-    showToast('Preencha data, horário e serviço', 'error');
-    return;
-  }
+  // Nenhum campo obrigatório — salva só o que foi preenchido
 
   // Verifica se mudou data ou horário para decidir se manda msg
   const dataAtual = agEmEdicao?.data_hora?.split('T')[0];
