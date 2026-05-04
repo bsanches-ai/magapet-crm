@@ -1948,21 +1948,64 @@ function abrirAdicional(id) {
 
 let selectedAdicionais = [];
 
-function selectAdicional(el, i, nome, preco) {
+function selectAdicional(el, i, nome, preco, isLivre) {
   const idx = selectedAdicionais.findIndex(a => a.nome === nome);
   if (idx >= 0) {
     selectedAdicionais.splice(idx, 1);
     el.classList.remove('selected');
+    // Esconde extras se desembaraço desmarcado
+    if (nome === 'Desembaraço') {
+      document.getElementById('adicionalExtras').style.display = 'none';
+      document.getElementById('desembaracoNivelWrap').style.display = 'none';
+      document.getElementById('adicionalValorLivreWrap').style.display = 'none';
+    }
   } else {
-    selectedAdicionais.push({ nome, preco });
+    selectedAdicionais.push({ nome, preco, isLivre });
     el.classList.add('selected');
+    // Mostra extras
+    if (nome === 'Desembaraço') {
+      document.getElementById('adicionalExtras').style.display = 'block';
+      document.getElementById('desembaracoNivelWrap').style.display = 'block';
+      document.getElementById('adicionalValorLivreWrap').style.display = 'none';
+    } else if (isLivre) {
+      document.getElementById('adicionalExtras').style.display = 'block';
+      document.getElementById('adicionalValorLivreWrap').style.display = 'block';
+    }
   }
 }
 
 async function confirmarAdicional() {
   if (!selectedAdicionais.length) { showToast('Selecione ao menos um adicional', 'error'); return; }
+
   const ag = agendamentos.find(a => a.id === currentCardId);
+  const adicionaisProcessados = [];
+
   for (const adicional of selectedAdicionais) {
+    let preco = adicional.preco;
+    let descricao = adicional.nome;
+
+    if (adicional.nome === 'Desembaraço') {
+      const nivel = document.getElementById('desembaracoNivel')?.value;
+      if (!nivel) { showToast('Selecione o nível do Desembaraço', 'error'); return; }
+      const precos = { '1': 20, '2': 40, '3': 60, '4': 80, '5': 0 };
+      if (nivel === '5') {
+        const valorLivre = parseFloat(document.getElementById('adicionalValorLivre')?.value);
+        if (!valorLivre) { showToast('Informe o valor do Desembaraço Nível 5', 'error'); return; }
+        preco = valorLivre;
+      } else {
+        preco = precos[nivel];
+      }
+      descricao = `Desembaraço Nível ${nivel}`;
+    } else if (adicional.isLivre) {
+      const valorLivre = parseFloat(document.getElementById('adicionalValorLivre')?.value);
+      if (!valorLivre) { showToast(`Informe o valor do adicional ${adicional.nome}`, 'error'); return; }
+      preco = valorLivre;
+    }
+
+    adicionaisProcessados.push({ nome: descricao, preco });
+  }
+
+  for (const adicional of adicionaisProcessados) {
     try {
       await fetch(`${N8N_ATENDIMENTO}/adicional`, {
         method: 'POST',
@@ -1976,8 +2019,9 @@ async function confirmarAdicional() {
       ag.adicionais_valor = (ag.adicionais_valor || 0) + adicional.preco;
     }
   }
+
   closeModal('modalAdicional');
-  const nomes = selectedAdicionais.map(a => a.nome).join(', ');
+  const nomes = adicionaisProcessados.map(a => a.nome).join(', ');
   showToast(`${nomes} adicionado(s)!`, 'success');
   renderAgenda();
 }
