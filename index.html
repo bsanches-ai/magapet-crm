@@ -1126,26 +1126,24 @@
         <label class="form-label">Serviço *</label>
         <select class="modal-input" id="editAg-servico" style="margin:0;" onchange="atualizarHorariosEdicao(); buscarPrecoServico(this.value)">
           <option value="">Selecione...</option>
-          <optgroup label="Banho">
-            <option value="Banho PP (Pincher/Chihuahua/Yorkie)">Banho PP</option>
-            <option value="Banho P">Banho P</option>
-            <option value="Banho M pelo curto">Banho M pelo curto</option>
-            <option value="Banho M pelo longo">Banho M pelo longo</option>
-            <option value="Banho G">Banho G</option>
-            <option value="Banho Golden/Bordier">Banho Golden/Bordier</option>
-            <option value="Banho raça premium">Banho Raça Premium</option>
-          </optgroup>
-          <optgroup label="Banho + Tosa">
-            <option value="Tosa máquina com banho P">Tosa Máquina com Banho P</option>
-            <option value="Tosa tesoura com banho P">Tosa Tesoura com Banho P</option>
-            <option value="Tosa máquina com banho M">Tosa Máquina com Banho M</option>
-            <option value="Tosa tesoura com banho M">Tosa Tesoura com Banho M</option>
-            <option value="Tosa trimming Golden/Bordier/São Bernardo">Tosa Trimming Golden</option>
-          </optgroup>
-          <optgroup label="Higiene">
-            <option value="Tosa higiênica comum">Tosa Higiênica Comum</option>
-            <option value="Tosa higiênica clean">Tosa Higiênica Clean</option>
-          </optgroup>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Porte *</label>
+        <select class="modal-input" id="editAg-porte" style="margin:0;" onchange="onPorteEdicaoChange(this.value)">
+          <option value="">Selecione...</option>
+          <option value="PP">PP</option>
+          <option value="P">P</option>
+          <option value="M">M</option>
+          <option value="G">G</option>
+          <option value="GG">GG</option>
+        </select>
+      </div>
+      <div class="form-group" id="editAg-pelagemGroup" style="display:none;">
+        <label class="form-label">Pelagem *</label>
+        <select class="modal-input" id="editAg-pelagem" style="margin:0;" onchange="atualizarHorariosEdicao()">
+          <option value="curto">Pelo curto</option>
+          <option value="longo">Pelo longo</option>
         </select>
       </div>
     </div>
@@ -1998,6 +1996,18 @@ async function abrirEdicaoAgendamento(id) {
   const dataAtual = agEmEdicao.data_hora?.split('T')[0] || new Date().toISOString().split('T')[0];
   document.getElementById('editAg-data').value = dataAtual;
 
+  // Pre-fill porte e pelagem
+  const porteEl = document.getElementById('editAg-porte');
+  const pelagemGroup = document.getElementById('editAg-pelagemGroup');
+  const pelagemEl = document.getElementById('editAg-pelagem');
+  porteEl.value = agEmEdicao.pet_porte || '';
+  if (agEmEdicao.pet_porte === 'M') {
+    pelagemGroup.style.display = 'flex';
+    pelagemEl.value = agEmEdicao.pet_pelagem || 'curto';
+  } else {
+    pelagemGroup.style.display = 'none';
+  }
+
   // Preenche select de serviço
   const servicoEl = document.getElementById('editAg-servico');
   for (let opt of servicoEl.options) {
@@ -2102,6 +2112,18 @@ async function atualizarHorariosEdicao() {
   if (!temDisponivel) horarioEl.innerHTML = '<option value="">Sem vagas disponíveis</option>';
 }
 
+function onPorteEdicaoChange(porte) {
+  const pelagemGroup = document.getElementById('editAg-pelagemGroup');
+  if (porte === 'M') {
+    pelagemGroup.style.display = 'flex';
+  } else {
+    pelagemGroup.style.display = 'none';
+  }
+  if (agEmEdicao) agEmEdicao.pet_porte = porte;
+  buscarPrecoServico(document.getElementById('editAg-servico').value);
+  atualizarHorariosEdicao();
+}
+
 async function buscarPrecoServico(servicoNome) {
   if (!servicoNome || !agEmEdicao) return;
   try {
@@ -2130,6 +2152,8 @@ async function salvarEdicaoAgendamento() {
   const servico = document.getElementById('editAg-servico').value;
   const petId = document.getElementById('editAg-pet').value;
   const petNome = document.getElementById('editAg-pet').options[document.getElementById('editAg-pet').selectedIndex]?.text;
+  const porte = document.getElementById('editAg-porte').value;
+  const pelagem = document.getElementById('editAg-pelagem')?.value || '';
   const telefone = document.getElementById('editAg-telefone').value;
   const tutorNome = document.getElementById('editAg-tutor-nome').value;
 
@@ -2156,7 +2180,8 @@ async function salvarEdicaoAgendamento() {
         servico_nome: servico,
         pet_id: petId,
         pet_nome: petNome,
-        pet_porte: agEmEdicao?.pet_porte || '',
+        pet_porte: porte || agEmEdicao?.pet_porte || '',
+        pet_pelagem: pelagem || agEmEdicao?.pet_pelagem || '',
         valor_total: agEmEdicao?.valor || null,
         tutor_telefone: telefone,
         tutor_nome: tutorNome,
@@ -2174,6 +2199,8 @@ async function salvarEdicaoAgendamento() {
     agEmEdicao.hora = horario;
     agEmEdicao.servico = servico;
     agEmEdicao.servico_nome = servico;
+    if (porte) agEmEdicao.pet_porte = porte;
+    if (pelagem) agEmEdicao.pet_pelagem = pelagem;
     if (petId) agEmEdicao.pet_id = petId;
     if (petNome && petNome !== 'Selecione...') agEmEdicao.pet_nome = petNome;
     // valor já foi atualizado pelo buscarPrecoServico no onchange
