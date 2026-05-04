@@ -815,6 +815,29 @@
             <label class="form-label">Nome do pet *</label>
             <input class="form-input" type="text" id="petNome" placeholder="Nome do pet">
           </div>
+          <div class="form-group" id="petRacaGroup">
+            <label class="form-label">Raça</label>
+            <input class="form-input" type="text" id="petRaca" placeholder="Ex: Golden Retriever" oninput="sugerirPortePorRaca(this.value)">
+          </div>
+          <div class="form-group" id="petPorteGroup">
+            <label class="form-label">Porte *</label>
+            <select class="form-select" id="petPorte" onchange="onPorteChange(this.value)">
+              <option value="">Selecione...</option>
+              <option value="PP">PP — Pincher, Chihuahua, Yorkie</option>
+              <option value="P">P — Pequeno</option>
+              <option value="M">M — Médio</option>
+              <option value="G">G — Grande</option>
+              <option value="GG">GG — Raças especiais (avaliação presencial)</option>
+            </select>
+          </div>
+          <div class="form-group" id="petPelagemGroup" style="display:none;">
+            <label class="form-label">Pelagem</label>
+            <select class="form-select" id="petPelagem" onchange="atualizarHorarios()">
+              <option value="curto">Pelo curto</option>
+              <option value="longo">Pelo longo</option>
+            </select>
+          </div>
+          <div id="petGGAviso" style="display:none;grid-column:1/-1;background:rgba(217,95,82,0.08);border:1px solid rgba(217,95,82,0.2);border-radius:10px;padding:12px 14px;font-size:12px;color:#2a3a5c;line-height:1.6;"></div>
           <div class="form-group">
             <label class="form-label">Serviço *</label>
             <select class="form-select" id="servicoSelect" onchange="atualizarHorarios()">
@@ -2302,6 +2325,37 @@ document.addEventListener('click', e => {
 // =====================
 // ENCAIXE
 // =====================
+function sugerirPortePorRaca(raca) {
+  if (!raca || raca.length < 3) return;
+  const isGG = isRacaGG(raca);
+  const porteEl = document.getElementById('petPorte');
+  const avisoEl = document.getElementById('petGGAviso');
+  if (isGG && porteEl) {
+    porteEl.value = 'GG';
+    onPorteChange('GG');
+  }
+}
+
+function onPorteChange(porte) {
+  const pelagemGroup = document.getElementById('petPelagemGroup');
+  const avisoEl = document.getElementById('petGGAviso');
+
+  if (porte === 'M') {
+    pelagemGroup.style.display = 'flex';
+  } else {
+    pelagemGroup.style.display = 'none';
+  }
+
+  if (porte === 'GG') {
+    avisoEl.style.display = 'block';
+    avisoEl.textContent = TEXTO_GG || 'Raça GG — avaliação presencial necessária para precificação.';
+  } else {
+    avisoEl.style.display = 'none';
+  }
+
+  atualizarHorarios();
+}
+
 let searchTimeout;
 function searchExistingClient(val) {
   clearTimeout(searchTimeout);
@@ -2389,9 +2443,16 @@ function renderPetSelector(c) {
 function selectPet(id, nome, el) {
   document.querySelectorAll('#petSelectorList .search-result').forEach(e => e.style.borderColor = 'var(--border)');
   el.style.borderColor = 'var(--gold)';
-  clienteAtual.petSelecionado = { id, nome };
+  // Busca dados do pet no cliente atual
+  const pets = clienteAtual?.pets || [];
+  const petData = pets.find(p => (typeof p === 'object' ? p.id : p) === id);
+  clienteAtual.petSelecionado = { id, nome, porte: petData?.porte, pelagem: petData?.pelagem };
   document.getElementById('petNome').value = nome;
   document.getElementById('petNome').closest('.form-group').style.display = 'none';
+  document.getElementById('petRacaGroup').style.display = 'none';
+  document.getElementById('petPorteGroup').style.display = 'none';
+  document.getElementById('petPelagemGroup').style.display = 'none';
+  document.getElementById('petGGAviso').style.display = 'none';
 }
 
 function selectNovoPet(el) {
@@ -2399,6 +2460,8 @@ function selectNovoPet(el) {
   el.style.borderColor = 'var(--gold)';
   clienteAtual.petSelecionado = null;
   document.getElementById('petNome').closest('.form-group').style.display = 'flex';
+  document.getElementById('petRacaGroup').style.display = 'flex';
+  document.getElementById('petPorteGroup').style.display = 'flex';
   document.getElementById('petNome').focus();
 }
 
@@ -2463,6 +2526,9 @@ async function salvarEncaixe() {
         tutor_telefone: tel,
         pet_nome: petNome,
         pet_id: petId,
+        pet_porte: clienteAtual?.petSelecionado?.porte || document.getElementById('petPorte')?.value || '',
+        pet_pelagem: clienteAtual?.petSelecionado?.pelagem || document.getElementById('petPelagem')?.value || '',
+        pet_raca: document.getElementById('petRaca')?.value || '',
         servico,
         servico_nome: document.getElementById('servicoSelect').options[document.getElementById('servicoSelect').selectedIndex]?.text || servico,
         data,
@@ -3235,19 +3301,53 @@ async function salvarPet() {
 // =====================
 // CAPACIDADE_DIA e HORARIO_FUNCIONAMENTO carregados do banco via loadConfig()
 
+function getDuracaoEncaixe() {
+  const servicoEl = document.getElementById('servicoSelect');
+  const porteEl = document.getElementById('petPorte');
+  const pelagemEl = document.getElementById('petPelagem');
+  const servicoId = servicoEl?.value;
+  const porte = porteEl?.value || clienteAtual?.petSelecionado?.porte || '';
+  const pelagem = pelagemEl?.value || clienteAtual?.petSelecionado?.pelagem || null;
+
+  if (!servicoId || !porte || porte === 'GG') return 60; // GG padrão
+
+  const porteNorm = porte === 'M' ? 'M' : porte;
+  const dur = DURACOES_TENANT.find(d =>
+    d.servico_id === servicoId &&
+    d.porte === porteNorm &&
+    (pelagem ? d.pelagem === pelagem : true) &&
+    (d.pelagem === null || d.pelagem === pelagem)
+  );
+
+  // Se M sem pelagem definida, pega o maior
+  if (porte === 'M' && !pelagem) {
+    const durs = DURACOES_TENANT.filter(d => d.servico_id === servicoId && d.porte === 'M');
+    if (durs.length) return Math.max(...durs.map(d => d.duracao_minutos));
+  }
+
+  return dur?.duracao_minutos || 60;
+}
+
+function getTipoServico() {
+  const servicoEl = document.getElementById('servicoSelect');
+  const opt = servicoEl?.options[servicoEl.selectedIndex];
+  return opt?.dataset.tipo || 'banho';
+}
+
 function atualizarHorarios() {
   const dataVal = document.getElementById('dataEncaixe').value;
   const servicoEl = document.getElementById('servicoSelect');
   const horarioEl = document.getElementById('horarioSelect');
-  const opt = servicoEl.options[servicoEl.selectedIndex];
 
   if (!dataVal || !servicoEl.value) {
-    horarioEl.innerHTML = '<option value="">Selecione data e serviço primeiro</option>';
+    horarioEl.innerHTML = '<option value="">Selecione data, serviço e porte primeiro</option>';
     return;
   }
 
-  const tipo = opt.dataset.tipo || 'banho';
-  const dur = parseInt(opt.dataset.dur || '60');
+  const tipo = getTipoServico();
+  const durMinutos = getDuracaoEncaixe();
+  const slotsNecessarios = Math.ceil(durMinutos / 60);
+
   const data = new Date(dataVal + 'T12:00:00');
   const diaSemana = data.getDay();
   const cap = getCapacidadeDia(diaSemana, dataVal);
@@ -3258,43 +3358,64 @@ function atualizarHorarios() {
     return;
   }
 
-  // Último horário possível considerando duração
-  const ultimoInicio = func.fim - (dur / 60);
+  if (cap[tipo] === 0) {
+    horarioEl.innerHTML = '<option value="">Sem vagas para este serviço neste dia</option>';
+    return;
+  }
 
-  // Conta agendamentos por hora nesse dia
-  const agsDia = todosAgendamentos.filter(a => a.data_hora === dataVal);
+  // Último horário possível considerando duração total
+  const ultimoInicio = func.fim - slotsNecessarios;
+
+  // Busca agendamentos do dia com duração
+  const agsDia = agendamentos.filter(a =>
+    a.data_hora && a.data_hora.startsWith(dataVal) &&
+    !['cancelado', 'entregue'].includes(a.status)
+  );
 
   horarioEl.innerHTML = '<option value="">Selecione o horário</option>';
   let temDisponivel = false;
 
   for (let h = func.ini; h <= ultimoInicio; h++) {
-    const horaStr = String(h).padStart(2, '0') + ':00';
+    // Verifica todos os slots que o novo agendamento vai ocupar
+    let maxOcupados = 0;
 
-    // Almoço - capacidade reduzida sex-dom
-    let capHora = cap[tipo] || 0;
-    if ((h === 12 || h === 13) && [0,5,6].includes(diaSemana)) capHora = 2;
-    else if ((h === 12 || h === 13) && diaSemana === 4) capHora = h === 12 ? 1 : capHora;
-    else if (h === 12 || h === 13) capHora = 1;
+    for (let slot = 0; slot < slotsNecessarios; slot++) {
+      const slotH = h + slot;
+      const slotStr = String(slotH).padStart(2, '0') + ':00';
 
-    // Conta ocupados nesse slot
-    const ocupados = agsDia.filter(a => {
-      if (tipo === 'tosa' && !a.servico?.toLowerCase().includes('tosa')) return false;
-      if (tipo === 'banho' && a.servico?.toLowerCase().includes('tosa') && !a.servico?.toLowerCase().includes('banho')) return false;
-      return a.hora === horaStr;
-    }).length;
+      // Conta agendamentos que estão ocupando este slot
+      const ocupados = agsDia.filter(a => {
+        // Verifica tipo de serviço
+        const aTipo = a.servico?.toLowerCase().includes('tosa') &&
+          !a.servico?.toLowerCase().includes('banho') ? 'tosa' : 'banho';
+        // Tosa com banho é tosa pra fins de capacidade
+        const aEhTosa = a.servico?.toLowerCase().includes('tosa');
+        if (tipo === 'tosa' && !aEhTosa) return false;
+        if (tipo === 'banho' && aEhTosa && !a.servico?.toLowerCase().includes('banho')) return false;
 
-    const livre = capHora - ocupados;
+        // Calcula quantos slots este agendamento ocupa
+        const aDurSlots = Math.ceil((a.duracao_minutos || 60) / 60);
+        const aHoraInicio = parseInt(a.hora?.split(':')[0] || '0');
 
-    if (cap[tipo] === 0) continue; // Tipo não disponível neste dia
+        // Verifica se este agendamento está ativo no slot slotH
+        return slotH >= aHoraInicio && slotH < aHoraInicio + aDurSlots;
+      }).length;
+
+      maxOcupados = Math.max(maxOcupados, ocupados);
+    }
+
+    const capSlot = cap[tipo] || 0;
+    const livre = capSlot - maxOcupados;
+    const horaStr = String(h).padStart(2, '00') + ':00';
 
     const option = document.createElement('option');
     option.value = horaStr;
     if (livre <= 0) {
       option.textContent = `${horaStr} — Lotado`;
       option.disabled = true;
-      option.style.color = '#7a7065';
     } else {
-      option.textContent = `${horaStr} — ${livre} vaga${livre > 1 ? 's' : ''}`;
+      const duracaoTexto = durMinutos < 60 ? `${durMinutos}min` : durMinutos % 60 === 0 ? `${durMinutos/60}h` : `${Math.floor(durMinutos/60)}h${durMinutos%60}`;
+      option.textContent = `${horaStr} — ${livre} vaga${livre > 1 ? 's' : ''} · ${duracaoTexto}`;
       temDisponivel = true;
     }
     horarioEl.appendChild(option);
