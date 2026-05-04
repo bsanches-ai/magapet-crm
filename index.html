@@ -1380,6 +1380,8 @@ let CAPACIDADE_FERIADO = { banho: 2, tosa: 2 };
 let HORARIO_FERIADO = { ini: 9, fim: 16 };
 let SERVICOS_TENANT = [];
 let ADICIONAIS_TENANT = [];
+let RACAS_GG = [];
+let TEXTO_GG = '';
 let GOOGLE_LINK_CONFIG = 'https://share.google/ChXCIpXGSeRs3jyMF';
 let INSTAGRAM_CONFIG = '@MagaPet.oficial';
 
@@ -1478,6 +1480,8 @@ async function loadConfig() {
         if (c.chave === 'feriados') FERIADOS = val;
         if (c.chave === 'capacidade_feriado') CAPACIDADE_FERIADO = val;
         if (c.chave === 'horario_feriado') HORARIO_FERIADO = val;
+        if (c.chave === 'racas_gg') RACAS_GG = val;
+        if (c.chave === 'texto_gg') TEXTO_GG = val;
       });
     }
   } catch(e) {
@@ -1500,9 +1504,9 @@ async function loadConfig() {
     if (res.ok) {
       const raw = await res.json();
       ADICIONAIS_TENANT = Array.isArray(raw) ? raw.filter(s => !s._empty) : [];
-      // Atualiza ADICIONAL_PRECOS dinamicamente
+      // Popula ADICIONAL_PRECOS com preco_p como base
       ADICIONAIS_TENANT.forEach(a => {
-        ADICIONAL_PRECOS[a.nome] = a.preco_pp || 0;
+        ADICIONAL_PRECOS[a.nome] = parseFloat(a.preco_p_novo) || parseFloat(a.preco_pp_novo) || 0;
       });
     }
   } catch(e) { console.warn('loadAdicionais error:', e.message); }
@@ -1513,13 +1517,11 @@ function renderSelectsServicos() {
 
   const banho = SERVICOS_TENANT.filter(s => s.categoria === 'banho');
   const tosa = SERVICOS_TENANT.filter(s => s.categoria === 'tosa');
-  const higiene = SERVICOS_TENANT.filter(s => s.categoria === 'higiene');
 
   function buildOptions(lista) {
     return lista.map(s => {
       const tipo = s.categoria === 'tosa' ? 'tosa' : 'banho';
-      const dur = s.duracao_minutos || 60;
-      return `<option value="${s.nome}" data-tipo="${tipo}" data-dur="${dur}">${s.nome}</option>`;
+      return `<option value="${s.id}" data-nome="${s.nome}" data-tipo="${tipo}" data-gg="${s.preco_gg_livre}">${s.nome}</option>`;
     }).join('');
   }
 
@@ -1529,8 +1531,7 @@ function renderSelectsServicos() {
     encaixeEl.innerHTML = `
       <option value="">Selecione...</option>
       <optgroup label="Banho">${buildOptions(banho)}</optgroup>
-      <optgroup label="Banho + Tosa">${buildOptions(tosa)}</optgroup>
-      <optgroup label="Higiene">${buildOptions(higiene)}</optgroup>`;
+      <optgroup label="Banho + Tosa">${buildOptions(tosa)}</optgroup>`;
   }
 
   // Select editar agendamento
@@ -1539,9 +1540,30 @@ function renderSelectsServicos() {
     editEl.innerHTML = `
       <option value="">Selecione...</option>
       <optgroup label="Banho">${buildOptions(banho)}</optgroup>
-      <optgroup label="Banho + Tosa">${buildOptions(tosa)}</optgroup>
-      <optgroup label="Higiene">${buildOptions(higiene)}</optgroup>`;
+      <optgroup label="Banho + Tosa">${buildOptions(tosa)}</optgroup>`;
   }
+}
+
+function isRacaGG(raca) {
+  if (!raca) return false;
+  return RACAS_GG.some(r => raca.toLowerCase().includes(r.toLowerCase()));
+}
+
+function getPorteFromRaca(raca) {
+  if (isRacaGG(raca)) return 'GG';
+  return null;
+}
+
+function calcularPreco(servico, porte) {
+  if (!servico) return 0;
+  if (porte === 'GG' && servico.preco_gg_livre) return null; // campo livre
+  const mapa = {
+    'PP': parseFloat(servico.preco_pp_novo) || 0,
+    'P': parseFloat(servico.preco_p_novo) || 0,
+    'M': parseFloat(servico.preco_m_novo) || 0,
+    'G': parseFloat(servico.preco_g_novo) || 0,
+  };
+  return mapa[porte] || 0;
 }
 
 function isFeriado(dateStr) {
@@ -1683,12 +1705,12 @@ function renderCard(ag) {
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           ${ag.desconto ? `<span style="font-size:11px;color:var(--green);text-decoration:line-through;opacity:0.6">${formatMoney(valorTotal + ag.desconto)}</span>` : ''}
-          ${ag.is_premium
+          ${(ag.pet_porte === 'GG' || ag.is_premium)
             ? `<input type="number" placeholder="R$ valor" value="${ag.valor || ''}" min="170"
                 style="width:90px;font-size:14px;font-weight:700;color:#2a5ca8;background:#f0f2f7;border:1.5px solid #5b9bd5;border-radius:6px;padding:3px 6px;font-family:'DM Sans',sans-serif;"
                 onchange="atualizarValorPremium('${ag.id}', this.value)"
                 onclick="event.stopPropagation()"
-                title="Raça premium — informe o valor">`
+                title="Raça GG — informe o valor">`
             : ag.saldo_pacote
               ? `<span class="service-value" style="color:var(--green);">${ag.adicionais_valor ? formatMoney(ag.adicionais_valor) : 'R$ 0'}</span>`
               : `<span class="service-value">${formatMoney(valorTotal - (ag.desconto || 0))}</span>`
@@ -1769,29 +1791,25 @@ function updateSummary() {
 }
 
 
-const ADICIONAL_PRECOS = {
-  'Hidratação / Cardin': 35,
-  'Tosa higiênica comum': 25,
-  'Tosa higiênica clean': 35,
-  'Higiene bucal': 5
-};
+const ADICIONAL_PRECOS = {}; // populado dinamicamente pelo loadConfig
 
-const DURACAO_SERVICO = {
-  'banho': {
-    'PP': 45, 'P': 60, 'M pelo curto': 60, 'M pelo longo': 90,
-    'G': 90, 'Golden/Bordier': 120, 'Premium': 120
-  },
-  'tosa': {
-    'PP': 60, 'P': 60, 'M pelo curto': 90, 'M pelo longo': 90,
-    'G': 90, 'Golden/Bordier': 120, 'Premium': 210
-  }
-};
+// Durações carregadas do banco via tenant_servico_duracao
+let DURACOES_TENANT = [];
 
-function getDuracao(servico, porte) {
-  if (!servico || !porte) return null;
-  const tipo = servico.toLowerCase().includes('tosa') ? 'tosa' : 'banho';
-  const mins = DURACAO_SERVICO[tipo]?.[porte];
-  if (!mins) return null;
+function getDuracao(servicoNome, porte, pelagem) {
+  if (!servicoNome || !porte) return null;
+  const servico = SERVICOS_TENANT.find(s => s.nome === servicoNome);
+  if (!servico) return null;
+  // Normaliza porte
+  const porteNorm = porte === 'M pelo curto' ? 'M' : porte === 'M pelo longo' ? 'M' : porte;
+  const pelNorm = porte === 'M pelo longo' ? 'longo' : porte === 'M pelo curto' ? 'curto' : (pelagem || null);
+  const dur = DURACOES_TENANT.find(d =>
+    d.servico_id === servico.id &&
+    d.porte === porteNorm &&
+    (d.pelagem === pelNorm || d.pelagem === null)
+  );
+  if (!dur) return null;
+  const mins = dur.duracao_minutos;
   if (mins < 60) return `${mins}min`;
   if (mins % 60 === 0) return `${mins/60}h`;
   return `${Math.floor(mins/60)}h${mins%60}`;
@@ -1865,19 +1883,22 @@ function abrirAdicional(id) {
   const jaAdicionados = (ag?.adicionais || []).map(a => typeof a === 'string' ? a : a.nome);
 
   // Pega porte do pet do agendamento atual
-  const porteMap = {
-    'PP': 'preco_pp', 'P': 'preco_p',
-    'M pelo curto': 'preco_m_pelo_curto', 'M pelo longo': 'preco_m_pelo_longo',
-    'G': 'preco_g', 'Golden/Bordier': 'preco_golden', 'Premium': 'preco_premium_a_partir'
+  const porteMapNovo = {
+    'PP': 'preco_pp_novo', 'P': 'preco_p_novo',
+    'M': 'preco_m_novo', 'M pelo curto': 'preco_m_novo', 'M pelo longo': 'preco_m_novo',
+    'G': 'preco_g_novo', 'Golden/Bordier': 'preco_g_novo',
+    'GG': null, 'Premium': null
   };
   const porteAtual = ag?.pet_porte || 'P';
-  const colPreco = porteMap[porteAtual] || 'preco_p';
+  const colPreco = porteMapNovo[porteAtual];
+  const isGG = porteAtual === 'GG' || porteAtual === 'Premium';
 
   document.getElementById('adicionalList').innerHTML = adicionais.map((a, i) => {
     const jaAdicionado = jaAdicionados.includes(a.nome);
-    // Pega preço pelo porte, fallback pra preco_p ou preco hardcoded
     const servicoData = ADICIONAIS_TENANT.find(s => s.nome === a.nome);
-    const preco = servicoData ? (parseFloat(servicoData[colPreco]) || parseFloat(servicoData.preco_p) || a.preco || 0) : (a.preco || 0);
+    const isGGlivreAdicional = servicoData?.preco_gg_livre && isGG;
+    const preco = isGGlivreAdicional ? 0 : 
+      servicoData ? (parseFloat(servicoData[colPreco]) || parseFloat(servicoData.preco_p_novo) || a.preco || 0) : (a.preco || 0);
     return `<div class="adicional-item ${jaAdicionado ? 'disabled' : ''}" 
       onclick="${jaAdicionado ? '' : `selectAdicional(this, ${i}, '${a.nome}', ${preco})`}"
       style="${jaAdicionado ? 'opacity:0.4;cursor:not-allowed;' : ''}">
