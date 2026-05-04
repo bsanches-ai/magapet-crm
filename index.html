@@ -1033,6 +1033,23 @@
   <div class="modal">
     <div class="modal-title">➕ Adicionar serviço</div>
     <div class="adicional-list" id="adicionalList"></div>
+    <div id="adicionalExtras" style="display:none;margin-bottom:12px;">
+      <div id="desembaracoNivelWrap" style="display:none;margin-bottom:8px;">
+        <label class="form-label" style="margin-bottom:4px;">Nível do Desembaraço</label>
+        <select class="modal-input" id="desembaracoNivel" style="margin:0;" onchange="onDesembaracoNivelChange(this.value)">
+          <option value="">Selecione o nível...</option>
+          <option value="1">Nível 1 — R$ 20</option>
+          <option value="2">Nível 2 — R$ 40</option>
+          <option value="3">Nível 3 — R$ 60</option>
+          <option value="4">Nível 4 — R$ 80</option>
+          <option value="5">Nível 5 — a consultar</option>
+        </select>
+      </div>
+      <div id="adicionalValorLivreWrap" style="display:none;margin-bottom:8px;">
+        <label class="form-label" style="margin-bottom:4px;">Valor (R$)</label>
+        <input type="number" class="modal-input" id="adicionalValorLivre" placeholder="Ex: 150" min="0" style="margin:0;">
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn-modal-cancel" onclick="closeModal('modalAdicional')">Cancelar</button>
       <button class="btn-modal-primary" onclick="confirmarAdicional()">Confirmar</button>
@@ -1922,27 +1939,40 @@ function abrirAdicional(id) {
   // Pega porte do pet do agendamento atual
   const porteMapNovo = {
     'PP': 'preco_pp_novo', 'P': 'preco_p_novo',
-    'M': 'preco_m_novo', 'M pelo curto': 'preco_m_novo', 'M pelo longo': 'preco_m_novo',
-    'G': 'preco_g_novo', 'Golden/Bordier': 'preco_g_novo',
-    'GG': null, 'Premium': null
+    'M': 'preco_m_novo', 'G': 'preco_g_novo', 'GG': null
   };
   const porteAtual = ag?.pet_porte || 'P';
   const colPreco = porteMapNovo[porteAtual];
-  const isGG = porteAtual === 'GG' || porteAtual === 'Premium';
+  const isGG = porteAtual === 'GG';
 
-  document.getElementById('adicionalList').innerHTML = adicionais.map((a, i) => {
+  const statusPermiteDesembaraco = ['atendendo', 'pronto'].includes(ag?.status);
+  const adicionaisFiltrados = ADICIONAIS_TENANT.filter(a =>
+    a.nome !== 'Desembaraço' || statusPermiteDesembaraco
+  );
+
+  document.getElementById('adicionalList').innerHTML = adicionaisFiltrados.map((a, i) => {
     const jaAdicionado = jaAdicionados.includes(a.nome);
-    const servicoData = ADICIONAIS_TENANT.find(s => s.nome === a.nome);
-    const isGGlivreAdicional = servicoData?.preco_gg_livre && isGG;
-    const preco = isGGlivreAdicional ? 0 : 
-      servicoData ? (parseFloat(servicoData[colPreco]) || parseFloat(servicoData.preco_p_novo) || a.preco || 0) : (a.preco || 0);
-    return `<div class="adicional-item ${jaAdicionado ? 'disabled' : ''}" 
-      onclick="${jaAdicionado ? '' : `selectAdicional(this, ${i}, '${a.nome}', ${preco})`}"
+    const isGGlivre = a.preco_gg_livre && isGG;
+    const isDesembaraco = a.nome === 'Desembaraço';
+    const preco = isGGlivre || isDesembaraco ? 0 :
+      parseFloat(a[colPreco]) || parseFloat(a.preco_p_novo) || 0;
+    return `<div class="adicional-item ${jaAdicionado ? 'disabled' : ''}"
+      onclick="${jaAdicionado ? '' : `selectAdicional(this, ${i}, '${a.nome}', ${preco}, ${isGGlivre || isDesembaraco})`}"
       style="${jaAdicionado ? 'opacity:0.4;cursor:not-allowed;' : ''}">
-      <span class="adicional-nome">${a.nome}${jaAdicionado ? ' <span style="font-size:10px;color:var(--green);">✓ já adicionado</span>' : ''}<span style="font-size:10px;color:var(--muted);margin-left:4px;">(porte ${porteAtual})</span></span>
-      <span class="adicional-preco">${formatMoney(preco)}</span>
+      <span class="adicional-nome">${a.nome}${jaAdicionado ? ' <span style="font-size:10px;color:var(--green);">✓ já adicionado</span>' : ''}
+        ${!isDesembaraco ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">(porte ${porteAtual})</span>` : '<span style="font-size:10px;color:var(--blue);margin-left:4px;">selecione o nível</span>'}
+      </span>
+      <span class="adicional-preco">${isGGlivre || isDesembaraco ? 'a consultar' : formatMoney(preco)}</span>
     </div>`;
   }).join('');
+
+  // Reset extras
+  document.getElementById('adicionalExtras').style.display = 'none';
+  document.getElementById('desembaracoNivelWrap').style.display = 'none';
+  document.getElementById('adicionalValorLivreWrap').style.display = 'none';
+  document.getElementById('desembaracoNivel').value = '';
+  document.getElementById('adicionalValorLivre').value = '';
+
   document.getElementById('modalAdicional').classList.add('open');
 }
 
