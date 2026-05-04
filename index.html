@@ -1292,11 +1292,17 @@
           <option value="">Selecione</option>
           <option value="PP">PP</option>
           <option value="P">P</option>
-          <option value="M pelo curto">M pelo curto</option>
-          <option value="M pelo longo">M pelo longo</option>
+          <option value="M">M</option>
           <option value="G">G</option>
-          <option value="Golden/Bordier">Golden/Bordier</option>
-          <option value="Premium">Premium</option>
+          <option value="GG">GG</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Pelagem</label>
+        <select class="modal-input" id="edit-pet-pelagem" style="margin:0;">
+          <option value="">Selecione</option>
+          <option value="curto">Pelo curto</option>
+          <option value="longo">Pelo longo</option>
         </select>
       </div>
       <div class="form-group">
@@ -1705,7 +1711,7 @@ function renderCard(ag) {
     ag.pendente_humano ? '<span class="tag tag-pendente">⚠️ Pendente</span>' : '',
   ].filter(Boolean).join('');
 
-  const editarBtn = statusReal === 'aguardando'
+  const editarBtn = !['entregue','cancelado'].includes(statusReal)
     ? `<button class="btn" style="background:#eef4ff;color:#2a5ca8;border:1px solid #7eb8f7;font-weight:600;" onclick="abrirEdicaoAgendamento('${ag.id}')">✏️ Editar</button>` : '';
   const cancelarBtn = statusReal === 'aguardando'
     ? `<button class="btn" style="background:#fef0ee;color:#d95f52;border:1px solid #d95f52;font-weight:600;" onclick="confirmarCancelamento('${ag.id}','${ag.pet_nome}','${ag.tutor_telefone}','${ag.tutor_nome}')">✕ Cancelar</button>` : '';
@@ -3340,6 +3346,7 @@ function editarPet(pet, tutorNome) {
   document.getElementById('edit-pet-peso').value = pet.peso || '';
   document.getElementById('edit-pet-cor').value = pet.cor || '';
   document.getElementById('edit-pet-porte').value = pet.porte || '';
+  document.getElementById('edit-pet-pelagem').value = pet.pelagem || '';
   document.getElementById('edit-pet-sexo').value = pet.sexo || 'M';
   document.getElementById('edit-pet-vacinas').checked = !!pet.vacinas_em_dia;
   document.getElementById('edit-pet-doenca').checked = !!pet.possui_doenca;
@@ -3367,6 +3374,7 @@ async function salvarPet() {
     peso: document.getElementById('edit-pet-peso').value,
     cor: document.getElementById('edit-pet-cor').value,
     porte: document.getElementById('edit-pet-porte').value,
+    pelagem: document.getElementById('edit-pet-pelagem').value,
     sexo: document.getElementById('edit-pet-sexo').value,
     vacinas_em_dia: document.getElementById('edit-pet-vacinas').checked,
     possui_doenca: document.getElementById('edit-pet-doenca').checked,
