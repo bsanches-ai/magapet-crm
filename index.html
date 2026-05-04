@@ -2101,7 +2101,8 @@ async function abrirEdicaoAgendamento(id) {
   const pelagemEl = document.getElementById('editAg-pelagem');
   porteEl.value = agEmEdicao.pet_porte || '';
   pelagemEl.value = agEmEdicao.pet_pelagem || '';
-  pelagemGroup.style.display = agEmEdicao.pet_porte ? 'flex' : 'none';
+  // Sempre mostra pelagem no editar agendamento
+  pelagemGroup.style.display = 'flex';
 
   // Preenche select de serviço
   const servicoEl = document.getElementById('editAg-servico');
@@ -2463,11 +2464,8 @@ function onPorteChange(porte) {
   const pelagemGroup = document.getElementById('petPelagemGroup');
   const avisoEl = document.getElementById('petGGAviso');
 
-  if (porte === 'M') {
-    pelagemGroup.style.display = 'flex';
-  } else {
-    pelagemGroup.style.display = 'none';
-  }
+  // Mostra pelagem para todos os portes
+  pelagemGroup.style.display = porte ? 'flex' : 'none';
 
   if (porte === 'GG') {
     avisoEl.style.display = 'block';
@@ -2590,6 +2588,7 @@ function selectNovoPet(el) {
   document.getElementById('petNome').closest('.form-group').style.display = 'flex';
   document.getElementById('petRacaGroup').style.display = 'flex';
   document.getElementById('petPorteGroup').style.display = 'flex';
+  document.getElementById('petPelagemGroup').style.display = 'none'; // mostra ao selecionar porte
   document.getElementById('petNome').focus();
 }
 
@@ -2669,14 +2668,22 @@ async function salvarEncaixe() {
   } catch {}
 
   // Adiciona ao mock local pra mostrar na agenda
+  const porte = clienteAtual?.petSelecionado?.porte || document.getElementById('petPorte')?.value || '';
+  const pelagem = clienteAtual?.petSelecionado?.pelagem || document.getElementById('petPelagem')?.value || '';
+  const servicoData = SERVICOS_TENANT.find(s => s.id === servico);
+  const porteMapCalc = { 'PP': 'preco_pp_novo', 'P': 'preco_p_novo', 'M': 'preco_m_novo', 'G': 'preco_g_novo' };
+  const valorCalculado = porte === 'GG' ? 0 : parseFloat(servicoData?.[porteMapCalc[porte]]) || 0;
+
   const novoAg = {
     id: 'enc-' + Date.now(),
     hora: horario,
     pet_nome: petNome,
-    pet_raca: '',
+    pet_raca: document.getElementById('petRaca')?.value || '',
     pet_sexo: 'M',
-    servico: servico,
-    valor: 60,
+    pet_porte: porte,
+    pet_pelagem: pelagem,
+    servico: servicoData?.nome || servico,
+    valor: valorCalculado,
     tutor_nome: nome,
     tutor_telefone: tel,
     status: 'aguardando',
