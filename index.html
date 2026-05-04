@@ -3471,7 +3471,7 @@ function getTipoServico() {
   return opt?.dataset.tipo || 'banho';
 }
 
-function atualizarHorarios() {
+async function atualizarHorarios() {
   const dataVal = document.getElementById('dataEncaixe').value;
   const servicoEl = document.getElementById('servicoSelect');
   const horarioEl = document.getElementById('horarioSelect');
@@ -3500,41 +3500,40 @@ function atualizarHorarios() {
     return;
   }
 
-  // Último horário possível considerando duração total
-  const ultimoInicio = func.fim - slotsNecessarios;
+  horarioEl.innerHTML = '<option value="">Buscando vagas...</option>';
 
-  // Busca agendamentos do dia com duração
-  const agsDia = agendamentos.filter(a =>
-    a.data_hora && a.data_hora.startsWith(dataVal) &&
-    !['cancelado', 'entregue'].includes(a.status)
-  );
+  // Busca agendamentos do dia do servidor
+  let agsDia = [];
+  try {
+    const res = await fetch(`${N8N_LEITURA}/agenda?tenant_id=${TENANT_ID}&data=${dataVal}`);
+    if (res.ok) {
+      const raw = await res.json();
+      agsDia = Array.isArray(raw) ? raw.filter(a => !a._empty && !['cancelado','entregue'].includes(a.status)) : [];
+    }
+  } catch {
+    agsDia = agendamentos.filter(a =>
+      a.data_hora && a.data_hora.startsWith(dataVal) &&
+      !['cancelado', 'entregue'].includes(a.status)
+    );
+  }
+
+  const ultimoInicio = func.fim - slotsNecessarios;
 
   horarioEl.innerHTML = '<option value="">Selecione o horário</option>';
   let temDisponivel = false;
 
   for (let h = func.ini; h <= ultimoInicio; h++) {
-    // Verifica todos os slots que o novo agendamento vai ocupar
     let maxOcupados = 0;
 
     for (let slot = 0; slot < slotsNecessarios; slot++) {
       const slotH = h + slot;
-      const slotStr = String(slotH).padStart(2, '0') + ':00';
 
-      // Conta agendamentos que estão ocupando este slot
       const ocupados = agsDia.filter(a => {
-        // Verifica tipo de serviço
-        const aTipo = a.servico?.toLowerCase().includes('tosa') &&
-          !a.servico?.toLowerCase().includes('banho') ? 'tosa' : 'banho';
-        // Tosa com banho é tosa pra fins de capacidade
         const aEhTosa = a.servico?.toLowerCase().includes('tosa');
         if (tipo === 'tosa' && !aEhTosa) return false;
         if (tipo === 'banho' && aEhTosa && !a.servico?.toLowerCase().includes('banho')) return false;
-
-        // Calcula quantos slots este agendamento ocupa
         const aDurSlots = Math.ceil((a.duracao_minutos || 60) / 60);
         const aHoraInicio = parseInt(a.hora?.split(':')[0] || '0');
-
-        // Verifica se este agendamento está ativo no slot slotH
         return slotH >= aHoraInicio && slotH < aHoraInicio + aDurSlots;
       }).length;
 
@@ -3543,7 +3542,7 @@ function atualizarHorarios() {
 
     const capSlot = cap[tipo] || 0;
     const livre = capSlot - maxOcupados;
-    const horaStr = String(h).padStart(2, '00') + ':00';
+    const horaStr = String(h).padStart(2, '0') + ':00';
 
     const option = document.createElement('option');
     option.value = horaStr;
