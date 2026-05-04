@@ -1522,7 +1522,12 @@ async function loadConfig() {
       const raw = await res.json();
       const configs = Array.isArray(raw) ? raw : [];
       configs.forEach(c => {
-        const val = typeof c.valor === 'string' ? JSON.parse(c.valor) : c.valor;
+        let val;
+        try {
+          val = typeof c.valor === 'string' ? JSON.parse(c.valor) : c.valor;
+        } catch {
+          val = c.valor; // string pura, não é JSON
+        }
         if (c.chave === 'capacidade_dia') {
           CAPACIDADE_DIA = {};
           Object.keys(val).forEach(k => CAPACIDADE_DIA[parseInt(k)] = val[k]);
