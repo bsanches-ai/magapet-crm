@@ -1038,11 +1038,6 @@
         <label class="form-label" style="margin-bottom:4px;">Nível do Desembaraço</label>
         <select class="modal-input" id="desembaracoNivel" style="margin:0;" onchange="onDesembaracoNivelChange(this.value)">
           <option value="">Selecione o nível...</option>
-          <option value="1">Nível 1 — R$ 20</option>
-          <option value="2">Nível 2 — R$ 40</option>
-          <option value="3">Nível 3 — R$ 60</option>
-          <option value="4">Nível 4 — R$ 80</option>
-          <option value="5">Nível 5 — a consultar</option>
         </select>
       </div>
       <div id="adicionalValorLivreWrap" style="display:none;margin-bottom:8px;">
@@ -1426,6 +1421,13 @@ let SERVICOS_TENANT = [];
 let ADICIONAIS_TENANT = [];
 let RACAS_GG = [];
 let TEXTO_GG = '';
+let DESEMBARACO_NIVEIS = [
+  { nivel: 1, preco: 20 },
+  { nivel: 2, preco: 40 },
+  { nivel: 3, preco: 60 },
+  { nivel: 4, preco: 80 },
+  { nivel: 5, preco: null }
+];
 let GOOGLE_LINK_CONFIG = 'https://share.google/ChXCIpXGSeRs3jyMF';
 let INSTAGRAM_CONFIG = '@MagaPet.oficial';
 
@@ -1533,6 +1535,7 @@ async function loadConfig() {
         if (c.chave === 'horario_feriado') HORARIO_FERIADO = val;
         if (c.chave === 'racas_gg') RACAS_GG = val;
         if (c.chave === 'texto_gg') TEXTO_GG = val;
+        if (c.chave === 'desembaraco_niveis') DESEMBARACO_NIVEIS = val;
       });
     }
   } catch(e) {
@@ -1963,14 +1966,22 @@ function abrirAdicional(id) {
     const preco = isGGlivre || isDesembaraco ? 0 :
       parseFloat(a[colPreco]) || parseFloat(a.preco_p_novo) || 0;
     return `<div class="adicional-item ${jaAdicionado ? 'disabled' : ''}"
-      onclick="${jaAdicionado ? '' : `selectAdicional(this, ${i}, '${a.nome}', ${preco}, ${isGGlivre || isDesembaraco})`}"
-      style="${jaAdicionado ? 'opacity:0.4;cursor:not-allowed;' : ''}">
+      data-nome="${a.nome}" data-preco="${preco}" data-livre="${isGGlivre}" data-desembaraco="${isDesembaraco}"
+      onclick="${jaAdicionado ? '' : 'toggleAdicional(this)'}"
+      style="${jaAdicionado ? 'opacity:0.4;cursor:not-allowed;' : 'cursor:pointer;'}">
       <span class="adicional-nome">${a.nome}${jaAdicionado ? ' <span style="font-size:10px;color:var(--green);">✓ já adicionado</span>' : ''}
-        ${!isDesembaraco ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">(porte ${porteAtual})</span>` : '<span style="font-size:10px;color:var(--blue);margin-left:4px;">selecione o nível</span>'}
+        ${!isDesembaraco ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">(porte ${porteAtual})</span>` : '<span style="font-size:10px;color:var(--blue);margin-left:4px;">selecione o nível após marcar</span>'}
       </span>
       <span class="adicional-preco">${isGGlivre || isDesembaraco ? 'a consultar' : formatMoney(preco)}</span>
     </div>`;
   }).join('');
+
+  // Popula select de nível do desembaraço dinamicamente
+  const nivelSelect = document.getElementById('desembaracoNivel');
+  nivelSelect.innerHTML = '<option value="">Selecione o nível...</option>' +
+    DESEMBARACO_NIVEIS.map(n =>
+      `<option value="${n.nivel}">${'Nível ' + n.nivel + (n.preco ? ' — R$ ' + n.preco : ' — a consultar')}</option>`
+    ).join('');
 
   // Reset extras
   document.getElementById('adicionalExtras').style.display = 'none';
@@ -1984,22 +1995,25 @@ function abrirAdicional(id) {
 
 let selectedAdicionais = [];
 
-function selectAdicional(el, i, nome, preco, isLivre) {
+function toggleAdicional(el) {
+  const nome = el.dataset.nome;
+  const preco = parseFloat(el.dataset.preco) || 0;
+  const isLivre = el.dataset.livre === 'true';
+  const isDesembaraco = el.dataset.desembaraco === 'true';
+
   const idx = selectedAdicionais.findIndex(a => a.nome === nome);
   if (idx >= 0) {
     selectedAdicionais.splice(idx, 1);
     el.classList.remove('selected');
-    // Esconde extras se desembaraço desmarcado
-    if (nome === 'Desembaraço') {
+    if (isDesembaraco) {
       document.getElementById('adicionalExtras').style.display = 'none';
       document.getElementById('desembaracoNivelWrap').style.display = 'none';
       document.getElementById('adicionalValorLivreWrap').style.display = 'none';
     }
   } else {
-    selectedAdicionais.push({ nome, preco, isLivre });
+    selectedAdicionais.push({ nome, preco, isLivre, isDesembaraco });
     el.classList.add('selected');
-    // Mostra extras
-    if (nome === 'Desembaraço') {
+    if (isDesembaraco) {
       document.getElementById('adicionalExtras').style.display = 'block';
       document.getElementById('desembaracoNivelWrap').style.display = 'block';
       document.getElementById('adicionalValorLivreWrap').style.display = 'none';
@@ -2008,6 +2022,10 @@ function selectAdicional(el, i, nome, preco, isLivre) {
       document.getElementById('adicionalValorLivreWrap').style.display = 'block';
     }
   }
+}
+
+function selectAdicional(el, i, nome, preco, isLivre) {
+  toggleAdicional(el);
 }
 
 async function confirmarAdicional() {
