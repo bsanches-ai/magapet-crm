@@ -1498,6 +1498,15 @@ async function loadConfig() {
     }
   } catch(e) { console.warn('loadServicos error:', e.message); }
 
+  // Carrega durações
+  try {
+    const res = await fetch(`${N8N_LEITURA}/duracoes?tenant_id=${TENANT_ID}`);
+    if (res.ok) {
+      const raw = await res.json();
+      DURACOES_TENANT = Array.isArray(raw) ? raw.filter(d => !d._empty) : [];
+    }
+  } catch(e) { console.warn('loadDuracoes error:', e.message); }
+
   // Carrega adicionais
   try {
     const res = await fetch(`${N8N_LEITURA}/adicionais?tenant_id=${TENANT_ID}`);
