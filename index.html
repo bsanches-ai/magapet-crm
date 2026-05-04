@@ -815,7 +815,7 @@
             <label class="form-label">Nome do pet *</label>
             <input class="form-input" type="text" id="petNome" placeholder="Nome do pet">
           </div>
-          <div class="form-group" id="petRacaGroup">
+          <div class="form-group" id="petRacaGroup" style="display:flex;">
             <label class="form-label">Raça</label>
             <input class="form-input" type="text" id="petRaca" placeholder="Ex: Golden Retriever" oninput="sugerirPortePorRaca(this.value)">
           </div>
@@ -1454,6 +1454,13 @@ function showPage(page) {
   if (page === 'agenda') loadAgenda();
   if (page === 'dashboard') loadDashboard();
   if (page === 'clientes') loadClientes();
+  if (page === 'encaixe') {
+    // Garante que campos de pet estão visíveis para novo cliente
+    if (!clienteAtual) {
+      document.getElementById('petRacaGroup').style.display = 'flex';
+      document.getElementById('petPorteGroup').style.display = 'flex';
+    }
+  }
   return false;
 }
 
@@ -2406,6 +2413,11 @@ function selectCliente(c) {
   document.getElementById('tutorTel').value = c.telefone;
   document.getElementById('searchClient').value = c.nome;
   document.getElementById('searchResults').innerHTML = '';
+  // Esconde campos de pet até selecionar pet novo ou existente
+  document.getElementById('petRacaGroup').style.display = 'none';
+  document.getElementById('petPorteGroup').style.display = 'none';
+  document.getElementById('petPelagemGroup').style.display = 'none';
+  document.getElementById('petGGAviso').style.display = 'none';
   renderPetSelector(c);
   showToast(`Cliente ${c.nome} selecionado`, 'success');
 }
