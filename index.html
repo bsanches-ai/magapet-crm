@@ -2118,15 +2118,18 @@ async function abrirEdicaoAgendamento(id) {
   // Sempre mostra pelagem no editar agendamento
   pelagemGroup.style.display = 'flex';
 
-  // Preenche select de serviço — value é ID, busca por nome
+  // Preenche select de serviço — value é UUID, busca por nome ou servico_id
   const servicoEl = document.getElementById('editAg-servico');
-  const servicoAtual = SERVICOS_TENANT.find(s => s.nome === agEmEdicao.servico || s.id === agEmEdicao.servico_id);
+  const servicoAtual = SERVICOS_TENANT.find(s => s.id === agEmEdicao.servico_id) ||
+                       SERVICOS_TENANT.find(s => s.nome === agEmEdicao.servico) ||
+                       SERVICOS_TENANT.find(s => agEmEdicao.servico && s.nome.toLowerCase().includes(agEmEdicao.servico.toLowerCase()));
   for (let opt of servicoEl.options) {
     if (servicoAtual && opt.value === servicoAtual.id) { opt.selected = true; break; }
   }
   if (servicoAtual) {
     agEmEdicao.servico_id = servicoAtual.id;
     agEmEdicao._servico_precos = servicoAtual;
+    agEmEdicao.servico = servicoAtual.nome;
   }
 
   // Preenche select de pet (busca pets do cliente)
@@ -2150,7 +2153,6 @@ async function abrirEdicaoAgendamento(id) {
     opt.selected = true;
     petEl.appendChild(opt);
   }
-  // Garante pet_id setado
   const petOpt = petEl.options[petEl.selectedIndex];
   if (petOpt?.value) agEmEdicao.pet_id = petOpt.value;
 
