@@ -819,6 +819,13 @@
             <label class="form-label">Raça</label>
             <input class="form-input" type="text" id="petRaca" placeholder="Ex: Golden Retriever" oninput="sugerirPortePorRaca(this.value)">
           </div>
+          <div class="form-group" id="petSexoGroup">
+            <label class="form-label">Sexo</label>
+            <select class="form-select" id="petSexo">
+              <option value="M">Macho</option>
+              <option value="F">Fêmea</option>
+            </select>
+          </div>
           <div class="form-group" id="petPorteGroup">
             <label class="form-label">Porte *</label>
             <select class="form-select" id="petPorte" onchange="onPorteChange(this.value)">
@@ -2534,6 +2541,7 @@ function selectCliente(c) {
   document.getElementById('searchResults').innerHTML = '';
   // Esconde campos de pet até selecionar pet novo ou existente
   document.getElementById('petRacaGroup').style.display = 'none';
+  document.getElementById('petSexoGroup').style.display = 'none';
   document.getElementById('petPorteGroup').style.display = 'none';
   document.getElementById('petPelagemGroup').style.display = 'none';
   document.getElementById('petGGAviso').style.display = 'none';
@@ -2581,6 +2589,7 @@ function selectPet(id, nome, el) {
   document.getElementById('petNome').value = nome;
   document.getElementById('petNome').closest('.form-group').style.display = 'none';
   document.getElementById('petRacaGroup').style.display = 'none';
+  document.getElementById('petSexoGroup').style.display = 'none';
   document.getElementById('petPorteGroup').style.display = 'none';
   document.getElementById('petPelagemGroup').style.display = 'none';
   document.getElementById('petGGAviso').style.display = 'none';
@@ -2592,6 +2601,7 @@ function selectNovoPet(el) {
   clienteAtual.petSelecionado = null;
   document.getElementById('petNome').closest('.form-group').style.display = 'flex';
   document.getElementById('petRacaGroup').style.display = 'flex';
+  document.getElementById('petSexoGroup').style.display = 'flex';
   document.getElementById('petPorteGroup').style.display = 'flex';
   document.getElementById('petPelagemGroup').style.display = 'none'; // mostra ao selecionar porte
   document.getElementById('petNome').focus();
@@ -2661,6 +2671,7 @@ async function salvarEncaixe() {
         pet_porte: clienteAtual?.petSelecionado?.porte || document.getElementById('petPorte')?.value || '',
         pet_pelagem: clienteAtual?.petSelecionado?.pelagem || document.getElementById('petPelagem')?.value || '',
         pet_raca: document.getElementById('petRaca')?.value || '',
+        pet_sexo: document.getElementById('petSexo')?.value || 'M',
         servico,
         servico_nome: document.getElementById('servicoSelect').options[document.getElementById('servicoSelect').selectedIndex]?.text || servico,
         data,
@@ -2684,7 +2695,7 @@ async function salvarEncaixe() {
     hora: horario,
     pet_nome: petNome,
     pet_raca: document.getElementById('petRaca')?.value || '',
-    pet_sexo: 'M',
+    pet_sexo: document.getElementById('petSexo')?.value || 'M',
     pet_porte: porte,
     pet_pelagem: pelagem,
     servico: servicoData?.nome || servico,
