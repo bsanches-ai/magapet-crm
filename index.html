@@ -2784,12 +2784,25 @@ async function salvarEncaixe() {
 
   showToast('Agendamento criado! ✓', 'success');
 
-  // Reset form
+  // Reset form completo
   document.getElementById('tutorNome').value = '';
   document.getElementById('tutorTel').value = '';
   document.getElementById('petNome').value = '';
+  document.getElementById('petRaca').value = '';
+  document.getElementById('petSexo').value = 'M';
+  document.getElementById('petPorte').value = '';
+  document.getElementById('petPelagem').value = 'curto';
+  document.getElementById('servicoSelect').value = '';
+  document.getElementById('dataEncaixe').value = new Date().toISOString().split('T')[0];
+  document.getElementById('horarioSelect').innerHTML = '<option value="">Selecione uma data primeiro</option>';
   document.getElementById('searchClient').value = '';
   document.getElementById('searchResults').innerHTML = '';
+  document.getElementById('petGGAviso').style.display = 'none';
+  document.getElementById('petPelagemGroup').style.display = 'none';
+  document.getElementById('petRacaGroup').style.display = 'flex';
+  document.getElementById('petSexoGroup').style.display = 'flex';
+  document.getElementById('petPorteGroup').style.display = 'flex';
+  document.getElementById('petNome').closest('.form-group').style.display = 'flex';
   const wrap = document.getElementById('petSelectorWrap');
   if (wrap) wrap.remove();
   clienteAtual = null;
