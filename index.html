@@ -2043,8 +2043,8 @@ function selectAdicional(el, i, nome, preco, isLivre) {
 
 function onDesembaracoNivelChange(nivel) {
   const livreWrap = document.getElementById('adicionalValorLivreWrap');
-  const isUltimo = DESEMBARACO_NIVEIS.find(n => String(n.nivel) === String(nivel) && n.preco === null);
-  if (isUltimo) {
+  const nivelConfig = DESEMBARACO_NIVEIS.find(n => String(n.nivel) === String(nivel));
+  if (nivelConfig && nivelConfig.preco === null) {
     livreWrap.style.display = 'block';
     document.getElementById('adicionalValorLivre').value = '';
     document.getElementById('adicionalValorLivre').placeholder = 'Ex: 100';
