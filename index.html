@@ -1875,6 +1875,55 @@ const ADICIONAL_PRECOS = {}; // populado dinamicamente pelo loadConfig
 // Durações carregadas do banco via tenant_servico_duracao
 let DURACOES_TENANT = [];
 
+// Durações hardcoded como fallback garantido
+const DURACOES_FIXAS = [
+  // Banho (98c2e102-549c-4aae-8893-dead217fe0b4)
+  { servico_id: '98c2e102-549c-4aae-8893-dead217fe0b4', porte: 'PP', pelagem: 'curto',  duracao_minutos: 45 },
+  { servico_id: '98c2e102-549c-4aae-8893-dead217fe0b4', porte: 'PP', pelagem: 'longo',  duracao_minutos: 45 },
+  { servico_id: '98c2e102-549c-4aae-8893-dead217fe0b4', porte: 'P',  pelagem: 'curto',  duracao_minutos: 60 },
+  { servico_id: '98c2e102-549c-4aae-8893-dead217fe0b4', porte: 'P',  pelagem: 'longo',  duracao_minutos: 60 },
+  { servico_id: '98c2e102-549c-4aae-8893-dead217fe0b4', porte: 'M',  pelagem: 'curto',  duracao_minutos: 60 },
+  { servico_id: '98c2e102-549c-4aae-8893-dead217fe0b4', porte: 'M',  pelagem: 'longo',  duracao_minutos: 90 },
+  { servico_id: '98c2e102-549c-4aae-8893-dead217fe0b4', porte: 'G',  pelagem: 'curto',  duracao_minutos: 90 },
+  { servico_id: '98c2e102-549c-4aae-8893-dead217fe0b4', porte: 'G',  pelagem: 'longo',  duracao_minutos: 90 },
+  { servico_id: '98c2e102-549c-4aae-8893-dead217fe0b4', porte: 'GG', pelagem: 'curto',  duracao_minutos: 120 },
+  { servico_id: '98c2e102-549c-4aae-8893-dead217fe0b4', porte: 'GG', pelagem: 'longo',  duracao_minutos: 120 },
+  // Tosa máquina com banho (a7777f07-e12a-4d74-b42e-c2f137a277ea)
+  { servico_id: 'a7777f07-e12a-4d74-b42e-c2f137a277ea', porte: 'P',  pelagem: 'curto',  duracao_minutos: 60 },
+  { servico_id: 'a7777f07-e12a-4d74-b42e-c2f137a277ea', porte: 'P',  pelagem: 'longo',  duracao_minutos: 60 },
+  { servico_id: 'a7777f07-e12a-4d74-b42e-c2f137a277ea', porte: 'M',  pelagem: null,     duracao_minutos: 90 },
+  { servico_id: 'a7777f07-e12a-4d74-b42e-c2f137a277ea', porte: 'G',  pelagem: 'curto',  duracao_minutos: 120 },
+  { servico_id: 'a7777f07-e12a-4d74-b42e-c2f137a277ea', porte: 'G',  pelagem: 'longo',  duracao_minutos: 120 },
+  { servico_id: 'a7777f07-e12a-4d74-b42e-c2f137a277ea', porte: 'GG', pelagem: 'curto',  duracao_minutos: 180 },
+  { servico_id: 'a7777f07-e12a-4d74-b42e-c2f137a277ea', porte: 'GG', pelagem: 'longo',  duracao_minutos: 180 },
+  // Tosa tesoura com banho (e8453eb9-1971-4098-8db2-025bf7b29d26)
+  { servico_id: 'e8453eb9-1971-4098-8db2-025bf7b29d26', porte: 'P',  pelagem: 'curto',  duracao_minutos: 90 },
+  { servico_id: 'e8453eb9-1971-4098-8db2-025bf7b29d26', porte: 'P',  pelagem: 'longo',  duracao_minutos: 90 },
+  { servico_id: 'e8453eb9-1971-4098-8db2-025bf7b29d26', porte: 'M',  pelagem: null,     duracao_minutos: 120 },
+  { servico_id: 'e8453eb9-1971-4098-8db2-025bf7b29d26', porte: 'G',  pelagem: 'curto',  duracao_minutos: 150 },
+  { servico_id: 'e8453eb9-1971-4098-8db2-025bf7b29d26', porte: 'G',  pelagem: 'longo',  duracao_minutos: 150 },
+  { servico_id: 'e8453eb9-1971-4098-8db2-025bf7b29d26', porte: 'GG', pelagem: 'curto',  duracao_minutos: 210 },
+  { servico_id: 'e8453eb9-1971-4098-8db2-025bf7b29d26', porte: 'GG', pelagem: 'longo',  duracao_minutos: 210 },
+  // Tosa trimming (43fe0a23-524a-403a-b01a-a539e034326a)
+  { servico_id: '43fe0a23-524a-403a-b01a-a539e034326a', porte: 'GG', pelagem: 'curto',  duracao_minutos: 210 },
+  { servico_id: '43fe0a23-524a-403a-b01a-a539e034326a', porte: 'GG', pelagem: 'longo',  duracao_minutos: 210 },
+];
+
+function getDuracaoPorServicoPorTe(servicoId, porte, pelagem) {
+  const tabela = DURACOES_FIXAS;
+  const dur = tabela.find(d =>
+    d.servico_id === servicoId &&
+    d.porte === porte &&
+    (pelagem ? d.pelagem === pelagem : (d.pelagem === null || d.pelagem === pelagem))
+  );
+  if (dur) return dur.duracao_minutos;
+  const durNull = tabela.find(d => d.servico_id === servicoId && d.porte === porte && d.pelagem === null);
+  if (durNull) return durNull.duracao_minutos;
+  const dursPorte = tabela.filter(d => d.servico_id === servicoId && d.porte === porte);
+  if (dursPorte.length) return Math.max(...dursPorte.map(d => d.duracao_minutos));
+  return 60;
+}
+
 function getDuracao(servicoNome, porte, pelagem) {
   if (!servicoNome || !porte) return null;
   const servico = SERVICOS_TENANT.find(s => s.nome === servicoNome);
@@ -1882,12 +1931,9 @@ function getDuracao(servicoNome, porte, pelagem) {
   // Normaliza porte
   const porteNorm = porte === 'M pelo curto' ? 'M' : porte === 'M pelo longo' ? 'M' : porte;
   const pelNorm = porte === 'M pelo longo' ? 'longo' : porte === 'M pelo curto' ? 'curto' : (pelagem || null);
-  const dur = DURACOES_TENANT.find(d =>
-    d.servico_id === servico.id &&
-    d.porte === porteNorm &&
-    (d.pelagem === pelNorm || d.pelagem === null)
-  );
-  if (!dur) return null;
+  const durMin = getDuracaoPorServicoPorTe(servico.id, porteNorm, pelNorm);
+  if (!durMin) return null;
+  const dur = { duracao_minutos: durMin };
   const mins = dur.duracao_minutos;
   if (mins < 60) return `${mins}min`;
   if (mins % 60 === 0) return `${mins/60}h`;
@@ -3485,26 +3531,7 @@ function getDuracaoEncaixe() {
   const pelagem = pelagemEl?.value || clienteAtual?.petSelecionado?.pelagem || null;
 
   if (!servicoId || !porte) return 60;
-
-  // Busca com pelagem exata
-  const dur = DURACOES_TENANT.find(d =>
-    d.servico_id === servicoId &&
-    d.porte === porte &&
-    (pelagem ? d.pelagem === pelagem : (d.pelagem === null || d.pelagem === pelagem))
-  );
-  if (dur) return dur.duracao_minutos;
-
-  // Sem pelagem (null no banco)
-  const durNull = DURACOES_TENANT.find(d =>
-    d.servico_id === servicoId && d.porte === porte && d.pelagem === null
-  );
-  if (durNull) return durNull.duracao_minutos;
-
-  // Qualquer pelagem do porte — pega o maior
-  const dursPorte = DURACOES_TENANT.filter(d => d.servico_id === servicoId && d.porte === porte);
-  if (dursPorte.length) return Math.max(...dursPorte.map(d => d.duracao_minutos));
-
-  return 60;
+  return getDuracaoPorServicoPorTe(servicoId, porte, pelagem);
 }
 
 function getTipoServico() {
