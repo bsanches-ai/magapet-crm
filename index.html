@@ -2267,11 +2267,12 @@ async function salvarEdicaoAgendamento() {
   // Nenhum campo obrigatório — salva só o que foi preenchido
 
   // Verifica se mudou data ou horário para decidir se manda msg
+  // Só conta como mudança se horário foi efetivamente selecionado
   const dataAtual = agEmEdicao?.data_hora?.split('T')[0];
   const d2 = new Date(agEmEdicao?.data_hora);
   const spH = (d2.getUTCHours() - 3 + 24) % 24;
   const horarioAtual = String(spH).padStart(2,'0') + ':00';
-  const mudouDataHorario = data !== dataAtual || horario !== horarioAtual;
+  const mudouDataHorario = !!horario && (data !== dataAtual || horario !== horarioAtual);
 
   const porteFinal = agEmEdicao?._porteNovo || porte || agEmEdicao?.pet_porte || '';
 
@@ -2291,12 +2292,10 @@ async function salvarEdicaoAgendamento() {
     } catch {}
   }
 
-  // Resolve serviço pelo SERVICOS_TENANT local (evita busca ilike no n8n)
+  // Resolve serviço pelo SERVICOS_TENANT local
   const servicoSelecionado = SERVICOS_TENANT.find(s => s.id === servico);
   const servicoIdFinal = servicoSelecionado?.id || agEmEdicao?.servico_id || '';
   const servicoNomeFinal = servicoSelecionado?.nome || agEmEdicao?.servico || '';
-
-  // Horário: se não selecionou novo, mantém o atual
   const horarioFinal = horario || agEmEdicao?.hora || '';
 
   try {
