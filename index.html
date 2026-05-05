@@ -2116,11 +2116,14 @@ async function abrirEdicaoAgendamento(id) {
   // Sempre mostra pelagem no editar agendamento
   pelagemGroup.style.display = 'flex';
 
-  // Preenche select de serviço
+  // Preenche select de serviço — value é ID, busca por nome
   const servicoEl = document.getElementById('editAg-servico');
+  const servicoAtual = SERVICOS_TENANT.find(s => s.nome === agEmEdicao.servico || s.id === agEmEdicao.servico_id);
   for (let opt of servicoEl.options) {
-    if (opt.value === agEmEdicao.servico) { opt.selected = true; break; }
+    if (servicoAtual && opt.value === servicoAtual.id) { opt.selected = true; break; }
+    if (!servicoAtual && opt.dataset.nome === agEmEdicao.servico) { opt.selected = true; break; }
   }
+  if (servicoAtual) agEmEdicao.servico_id = servicoAtual.id;
 
   // Preenche select de pet (busca pets do cliente)
   const petEl = document.getElementById('editAg-pet');
@@ -2243,6 +2246,7 @@ async function buscarPrecoServico(servicoId) {
   const servico = SERVICOS_TENANT.find(s => s.id === servicoId);
   if (servico) {
     agEmEdicao._servico_precos = servico;
+    agEmEdicao.servico_id = servico.id;
     const porteAtual = agEmEdicao._porteNovo || agEmEdicao.pet_porte;
     const MAPA = { 'PP':'preco_pp_novo','P':'preco_p_novo','M':'preco_m_novo','G':'preco_g_novo' };
     const col = MAPA[porteAtual];
@@ -2266,8 +2270,7 @@ async function salvarEdicaoAgendamento() {
 
   // Nenhum campo obrigatório — salva só o que foi preenchido
 
-  // Verifica se mudou data ou horário para decidir se manda msg
-  // Só conta como mudança se horário foi efetivamente selecionado
+  // Só notifica tutor se horário foi selecionado E é diferente do atual
   const dataAtual = agEmEdicao?.data_hora?.split('T')[0];
   const d2 = new Date(agEmEdicao?.data_hora);
   const spH = (d2.getUTCHours() - 3 + 24) % 24;
@@ -2292,7 +2295,7 @@ async function salvarEdicaoAgendamento() {
     } catch {}
   }
 
-  // Resolve serviço pelo SERVICOS_TENANT local
+  // Resolve serviço pelo SERVICOS_TENANT local (value do select é o ID)
   const servicoSelecionado = SERVICOS_TENANT.find(s => s.id === servico);
   const servicoIdFinal = servicoSelecionado?.id || agEmEdicao?.servico_id || '';
   const servicoNomeFinal = servicoSelecionado?.nome || agEmEdicao?.servico || '';
