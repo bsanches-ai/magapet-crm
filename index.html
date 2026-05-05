@@ -1769,9 +1769,9 @@ function renderCard(ag) {
             ${ag.adicionais?.length ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">
               ${ag.adicionais.map(a => {
                 const nome = typeof a === 'string' ? a : a.nome;
-                const preco = ADICIONAL_PRECOS[nome] || 0;
+                const preco = typeof a === 'object' ? (a.preco || 0) : (ADICIONAL_PRECOS[nome] || 0);
                 return `<span style="font-size:11px;background:#eef4ff;color:#2a5ca8;border:1px solid #c0d8f8;border-radius:12px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px;">
-                  + ${nome} <span style="cursor:pointer;color:#d95f52;font-weight:700;margin-left:2px;" onclick="event.stopPropagation();removerAdicional('${ag.id}','${nome}',${preco})">✕</span>
+                  + ${nome} (${formatMoney(preco)}) <span style="cursor:pointer;color:#d95f52;font-weight:700;margin-left:2px;" onclick="event.stopPropagation();removerAdicional('${ag.id}','${nome}',${preco})">✕</span>
                 </span>`;
               }).join('')}
             </div>` : ''}
@@ -2632,30 +2632,8 @@ async function salvarEncaixe() {
   let petId = petSelecionado?.id || null;
   let clienteId = clienteAtual?.id || null;
 
-  // Se cliente existente mas pet novo, cria o pet primeiro e aguarda ID
-  if (clienteAtual && !petSelecionado && petNome) {
-    showToast('Criando pet...', 'success');
-    try {
-      const resPet = await fetch(`${N8N_CADASTRO}/novo-pet`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenant_id: TENANT_ID, cliente_id: clienteAtual.id, nome: petNome, especie: 'canina' }),
-        signal: undefined
-      });
-      if (resPet.ok) {
-        const r = await resPet.json();
-        petId = r.id || null;
-
-        // Atualiza todosClientes com o novo pet
-        const novoPet = { id: petId, nome: petNome, especie: 'canina' };
-        const cIdx = todosClientes.findIndex(c => c.id === clienteId);
-        if (cIdx >= 0) {
-          todosClientes[cIdx].pets = todosClientes[cIdx].pets || [];
-          todosClientes[cIdx].pets.push(novoPet);
-        }
-      }
-    } catch {}
-  }
+  // Se cliente existente mas pet novo, o fluxo de encaixe no n8n cuida da criação do pet
+  // Não chama /novo-pet separado
 
   // Cria o agendamento com pet_id
   try {
