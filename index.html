@@ -1782,11 +1782,14 @@ function renderCard(ag) {
         <div style="display:flex;align-items:center;gap:8px;">
           ${ag.desconto ? `<span style="font-size:11px;color:var(--green);text-decoration:line-through;opacity:0.6">${formatMoney(valorTotal + ag.desconto)}</span>` : ''}
           ${(ag.pet_porte === 'GG' || ag.is_premium)
-            ? `<input type="number" placeholder="R$ valor" value="${ag.valor || ''}" min="170"
-                style="width:90px;font-size:14px;font-weight:700;color:#2a5ca8;background:#f0f2f7;border:1.5px solid #5b9bd5;border-radius:6px;padding:3px 6px;font-family:'DM Sans',sans-serif;"
-                onchange="atualizarValorPremium('${ag.id}', this.value)"
-                onclick="event.stopPropagation()"
-                title="Raça GG — informe o valor">`
+            ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+                <input type="number" placeholder="R$ valor" value="${ag.valor || ''}" min="0"
+                  style="width:90px;font-size:14px;font-weight:700;color:#2a5ca8;background:#f0f2f7;border:1.5px solid #5b9bd5;border-radius:6px;padding:3px 6px;font-family:'DM Sans',sans-serif;"
+                  onchange="atualizarValorPremium('${ag.id}', this.value)"
+                  onclick="event.stopPropagation()"
+                  title="Valor do serviço GG">
+                ${ag.adicionais_valor ? `<span style="font-size:11px;color:var(--blue);">+ ${formatMoney(ag.adicionais_valor)} adicionais</span><span style="font-size:12px;font-weight:700;color:var(--blue);">= ${formatMoney((ag.valor||0) + ag.adicionais_valor)}</span>` : ''}
+              </div>`
             : ag.saldo_pacote
               ? `<span class="service-value" style="color:var(--green);">${ag.adicionais_valor ? formatMoney(ag.adicionais_valor) : 'R$ 0'}</span>`
               : `<span class="service-value">${formatMoney(valorTotal - (ag.desconto || 0))}</span>`
@@ -3480,37 +3483,35 @@ function getDuracaoEncaixe() {
   const porte = porteEl?.value || clienteAtual?.petSelecionado?.porte || '';
   const pelagem = pelagemEl?.value || clienteAtual?.petSelecionado?.pelagem || null;
 
-  if (!servicoId || !porte) return 60;
+  if (!servicoId || !porte || porte === 'GG') return 60; // GG padrão
 
-  // Busca no banco considerando porte e pelagem
+  const porteNorm = porte === 'M' ? 'M' : porte;
   const dur = DURACOES_TENANT.find(d =>
     d.servico_id === servicoId &&
-    d.porte === porte &&
-    (pelagem ? d.pelagem === pelagem : (d.pelagem === null || d.pelagem === pelagem))
+    d.porte === porteNorm &&
+    (pelagem ? d.pelagem === pelagem : true) &&
+    (d.pelagem === null || d.pelagem === pelagem)
   );
 
-  if (dur) return dur.duracao_minutos;
+  // Se M sem pelagem definida, pega o maior
+  if (porte === 'M' && !pelagem) {
+    const durs = DURACOES_TENANT.filter(d => d.servico_id === servicoId && d.porte === 'M');
+    if (durs.length) return Math.max(...durs.map(d => d.duracao_minutos));
+  }
 
-  // Se não achou com pelagem, tenta sem (pelagem null)
-  const durSemPelagem = DURACOES_TENANT.find(d =>
-    d.servico_id === servicoId &&
-    d.porte === porte &&
-    d.pelagem === null
-  );
-
-  if (durSemPelagem) return durSemPelagem.duracao_minutos;
-
-  // Se não achou o porte exato, pega qualquer duração do serviço+porte sem filtrar pelagem
-  const dursPorte = DURACOES_TENANT.filter(d => d.servico_id === servicoId && d.porte === porte);
-  if (dursPorte.length) return Math.max(...dursPorte.map(d => d.duracao_minutos));
-
-  return 60;
+  return dur?.duracao_minutos || 60;
 }
 
 function getTipoServico() {
   const servicoEl = document.getElementById('servicoSelect');
   const opt = servicoEl?.options[servicoEl.selectedIndex];
-  return opt?.dataset.tipo || 'banho';
+  // Tenta pelo data-tipo do option
+  if (opt?.dataset.tipo) return opt.dataset.tipo;
+  // Fallback: busca no SERVICOS_TENANT pelo id selecionado
+  const servicoId = servicoEl?.value;
+  const servico = SERVICOS_TENANT.find(s => s.id === servicoId);
+  if (servico) return servico.categoria === 'tosa' ? 'tosa' : 'banho';
+  return 'banho';
 }
 
 async function atualizarHorarios() {
