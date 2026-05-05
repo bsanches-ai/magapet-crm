@@ -2018,7 +2018,8 @@ function toggleAdicional(el) {
   if (idx >= 0) {
     selectedAdicionais.splice(idx, 1);
     el.classList.remove('selected');
-    if (isDesembaraco) {
+    const temExtras = selectedAdicionais.some(a => a.isLivre || a.isDesembaraco);
+    if (!temExtras) {
       document.getElementById('adicionalExtras').style.display = 'none';
       document.getElementById('desembaracoNivelWrap').style.display = 'none';
       document.getElementById('adicionalValorLivreWrap').style.display = 'none';
@@ -2039,6 +2040,18 @@ function toggleAdicional(el) {
 
 function selectAdicional(el, i, nome, preco, isLivre) {
   toggleAdicional(el);
+}
+
+function onDesembaracoNivelChange(nivel) {
+  const livreWrap = document.getElementById('adicionalValorLivreWrap');
+  if (nivel === '5') {
+    livreWrap.style.display = 'block';
+    document.getElementById('adicionalValorLivre').value = '';
+    document.getElementById('adicionalValorLivre').placeholder = 'Ex: 100';
+  } else {
+    livreWrap.style.display = 'none';
+    document.getElementById('adicionalValorLivre').value = '';
+  }
 }
 
 async function confirmarAdicional() {
@@ -2098,6 +2111,7 @@ let agEmEdicao = null;
 async function abrirEdicaoAgendamento(id) {
   agEmEdicao = agendamentos.find(a => a.id === id);
   if (!agEmEdicao) return;
+  agEmEdicao._porteOriginal = agEmEdicao.pet_porte;
 
   document.getElementById('editAg-id').value = id;
   document.getElementById('editAg-telefone').value = agEmEdicao.tutor_telefone || '';
@@ -2306,6 +2320,28 @@ async function salvarEdicaoAgendamento() {
     if (petId) agEmEdicao.pet_id = petId;
     if (petNome && petNome !== 'Selecione...') agEmEdicao.pet_nome = petNome;
     // valor já foi atualizado pelo buscarPrecoServico no onchange
+  }
+
+  // Atualiza porte no pet e recalcula valor se mudou
+  if (agEmEdicao?.pet_id && porte && porte !== agEmEdicao._porteOriginal) {
+    try {
+      await fetch(`${N8N_ATENDIMENTO}/update-pet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenant_id: TENANT_ID,
+          pet_id: agEmEdicao.pet_id,
+          pet_porte: porte,
+          pet_pelagem: pelagem || agEmEdicao.pet_pelagem || ''
+        })
+      });
+    } catch {}
+    const MAPA = { 'PP':'preco_pp_novo','P':'preco_p_novo','M':'preco_m_novo','M pelo curto':'preco_m_novo','M pelo longo':'preco_m_novo','G':'preco_g_novo' };
+    if (agEmEdicao._servico_precos && MAPA[porte]) {
+      agEmEdicao.valor = parseFloat(agEmEdicao._servico_precos[MAPA[porte]]) || 0;
+    }
+    agEmEdicao.pet_porte = porte;
+    agEmEdicao._porteOriginal = porte;
   }
 
   closeModal('modalEditarAgendamento');
@@ -2648,8 +2684,14 @@ async function salvarEncaixe() {
         pet_id: petId,
         pet_porte: clienteAtual?.petSelecionado?.porte || document.getElementById('petPorte')?.value || '',
         pet_pelagem: clienteAtual?.petSelecionado?.pelagem || document.getElementById('petPelagem')?.value || '',
-        pet_raca: document.getElementById('petRaca')?.value || '',
-        pet_sexo: document.getElementById('petSexo')?.value || 'M',
+        pet_raca: (() => {
+          const g = document.getElementById('petRacaGroup');
+          return g?.style.display !== 'none' ? (document.getElementById('petRaca')?.value || '') : (clienteAtual?.petSelecionado?.raca || '');
+        })(),
+        pet_sexo: (() => {
+          const g = document.getElementById('petSexoGroup');
+          return g?.style.display !== 'none' ? (document.getElementById('petSexo')?.value || 'M') : (clienteAtual?.petSelecionado?.sexo || 'M');
+        })(),
         servico,
         servico_nome: document.getElementById('servicoSelect').options[document.getElementById('servicoSelect').selectedIndex]?.text || servico,
         data,
@@ -3523,9 +3565,10 @@ async function atualizarHorarios() {
       const slotH = h + slot;
 
       const ocupados = agsDia.filter(a => {
-        const aEhTosa = a.servico?.toLowerCase().includes('tosa');
+        const aEhTosa = a.servico?.toLowerCase().includes('tosa') &&
+                        !a.servico?.toLowerCase().includes('higiênica');
         if (tipo === 'tosa' && !aEhTosa) return false;
-        if (tipo === 'banho' && aEhTosa && !a.servico?.toLowerCase().includes('banho')) return false;
+        if (tipo === 'banho' && aEhTosa) return false;
         const aDurSlots = Math.ceil((a.duracao_minutos || 60) / 60);
         const aHoraInicio = parseInt(a.hora?.split(':')[0] || '0');
         return slotH >= aHoraInicio && slotH < aHoraInicio + aDurSlots;
