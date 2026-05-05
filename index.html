@@ -2041,6 +2041,19 @@ function selectAdicional(el, i, nome, preco, isLivre) {
   toggleAdicional(el);
 }
 
+function onDesembaracoNivelChange(nivel) {
+  const livreWrap = document.getElementById('adicionalValorLivreWrap');
+  const isUltimo = DESEMBARACO_NIVEIS.find(n => String(n.nivel) === String(nivel) && n.preco === null);
+  if (isUltimo) {
+    livreWrap.style.display = 'block';
+    document.getElementById('adicionalValorLivre').value = '';
+    document.getElementById('adicionalValorLivre').placeholder = 'Ex: 100';
+  } else {
+    livreWrap.style.display = 'none';
+    document.getElementById('adicionalValorLivre').value = '';
+  }
+}
+
 async function confirmarAdicional() {
   if (!selectedAdicionais.length) { showToast('Selecione ao menos um adicional', 'error'); return; }
 
