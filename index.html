@@ -2223,11 +2223,8 @@ async function atualizarHorariosEdicao() {
 function onPorteEdicaoChange(porte) {
   const pelagemGroup = document.getElementById('editAg-pelagemGroup');
   pelagemGroup.style.display = porte ? 'flex' : 'none';
-  // Guarda porte novo temporariamente sem sobrescrever pet_porte
-  // (preserva _porteOriginal para comparação no save)
   if (agEmEdicao) {
     agEmEdicao._porteNovo = porte;
-    // Recalcula valor usando SERVICOS_TENANT local (sem fetch)
     const servicoId = document.getElementById('editAg-servico').value;
     const servico = SERVICOS_TENANT.find(s => s.id === servicoId);
     if (servico) {
@@ -2242,7 +2239,6 @@ function onPorteEdicaoChange(porte) {
 }
 
 async function buscarPrecoServico(servicoId) {
-  // Busca direto no SERVICOS_TENANT local pelo ID (sem fetch desnecessário)
   if (!servicoId || !agEmEdicao) return;
   const servico = SERVICOS_TENANT.find(s => s.id === servicoId);
   if (servico) {
@@ -2251,7 +2247,6 @@ async function buscarPrecoServico(servicoId) {
     const MAPA = { 'PP':'preco_pp_novo','P':'preco_p_novo','M':'preco_m_novo','G':'preco_g_novo' };
     const col = MAPA[porteAtual];
     if (col) agEmEdicao.valor = parseFloat(servico[col]) || 0;
-    // Atualiza nome do serviço no agendamento
     agEmEdicao.servico = servico.nome;
     renderAgenda();
   }
@@ -2278,7 +2273,6 @@ async function salvarEdicaoAgendamento() {
   const horarioAtual = String(spH).padStart(2,'0') + ':00';
   const mudouDataHorario = data !== dataAtual || horario !== horarioAtual;
 
-  // Porte final: prioriza o que foi selecionado no modal
   const porteFinal = agEmEdicao?._porteNovo || porte || agEmEdicao?.pet_porte || '';
 
   // Atualiza porte no banco ANTES de reagendar, se mudou
@@ -2297,9 +2291,13 @@ async function salvarEdicaoAgendamento() {
     } catch {}
   }
 
-  // Nome do serviço: pega do SERVICOS_TENANT pelo ID selecionado
+  // Resolve serviço pelo SERVICOS_TENANT local (evita busca ilike no n8n)
   const servicoSelecionado = SERVICOS_TENANT.find(s => s.id === servico);
-  const servicoNomeFinal = servicoSelecionado?.nome || agEmEdicao?.servico || servico;
+  const servicoIdFinal = servicoSelecionado?.id || agEmEdicao?.servico_id || '';
+  const servicoNomeFinal = servicoSelecionado?.nome || agEmEdicao?.servico || '';
+
+  // Horário: se não selecionou novo, mantém o atual
+  const horarioFinal = horario || agEmEdicao?.hora || '';
 
   try {
     await fetch(`${N8N_ATENDIMENTO}/reagendar`, {
@@ -2308,7 +2306,9 @@ async function salvarEdicaoAgendamento() {
       body: JSON.stringify({
         tenant_id: TENANT_ID,
         agendamento_id: id,
-        data, horario,
+        data,
+        horario: horarioFinal,
+        servico_id: servicoIdFinal,
         servico_nome: servicoNomeFinal,
         pet_id: petId,
         pet_nome: petNome,
@@ -2317,7 +2317,7 @@ async function salvarEdicaoAgendamento() {
         valor_total: agEmEdicao?.valor || null,
         tutor_telefone: telefone,
         tutor_nome: tutorNome,
-        notificar_tutor: mudouDataHorario
+        notificar_tutor: mudouDataHorario === true
       }),
       signal: undefined
     });
@@ -2325,11 +2325,12 @@ async function salvarEdicaoAgendamento() {
 
   // Atualiza localmente
   if (agEmEdicao) {
-    const [h, m] = horario.split(':');
+    const [h, m] = (horarioFinal || '00:00').split(':');
     const utcH = (parseInt(h) + 3) % 24;
     agEmEdicao.data_hora = `${data}T${String(utcH).padStart(2,'0')}:${m}:00+00:00`;
-    agEmEdicao.hora = horario;
+    agEmEdicao.hora = horarioFinal;
     if (servicoNomeFinal) { agEmEdicao.servico = servicoNomeFinal; agEmEdicao.servico_nome = servicoNomeFinal; }
+    if (servicoIdFinal) agEmEdicao.servico_id = servicoIdFinal;
     if (porteFinal) { agEmEdicao.pet_porte = porteFinal; agEmEdicao._porteOriginal = porteFinal; agEmEdicao._porteNovo = null; }
     if (pelagem) agEmEdicao.pet_pelagem = pelagem;
     if (petId) agEmEdicao.pet_id = petId;
