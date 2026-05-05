@@ -3580,17 +3580,35 @@ async function atualizarHorarios() {
       const slotH = h + slot;
 
       const ocupados = agsDia.filter(a => {
-        const aServico = SERVICOS_TENANT.find(s => s.id === a.servico_id || s.nome === a.servico);
-        const aTipo = aServico?.categoria === 'tosa' ? 'tosa' : 'banho';
+        // Resolve tipo do serviço — por id, nome, ou texto do nome
+        const aServico = SERVICOS_TENANT.find(s => s.id === a.servico_id) ||
+                         SERVICOS_TENANT.find(s => s.nome === a.servico);
+        let aTipo = 'banho';
+        if (aServico) {
+          aTipo = aServico.categoria === 'tosa' ? 'tosa' : 'banho';
+        } else if (a.servico) {
+          // Fallback por nome quando SERVICOS_TENANT ainda não carregou
+          const nomeLower = a.servico.toLowerCase();
+          aTipo = (nomeLower.includes('tosa') && !nomeLower.includes('higiênica')) ? 'tosa' : 'banho';
+        }
         if (tipo !== aTipo) return false;
-        const aDurSlots = Math.ceil((a.duracao_minutos || 60) / 60);
-        // Resolve hora do agendamento: campo hora, ou extrai do data_hora
+        // Resolve hora início
         let aHoraInicio = 0;
         if (a.hora) {
           aHoraInicio = parseInt(a.hora.split(':')[0]);
         } else if (a.data_hora) {
           const d = new Date(a.data_hora);
           aHoraInicio = (d.getUTCHours() - 3 + 24) % 24;
+        }
+        // Se pronto, duração efetiva = slots já usados até agora
+        let aDurSlots;
+        if (a.status === 'pronto') {
+          const agoraH = new Date();
+          const horaAtual = agoraH.getHours() + agoraH.getMinutes() / 60;
+          const slotsUsados = Math.ceil(horaAtual - aHoraInicio);
+          aDurSlots = Math.max(1, slotsUsados);
+        } else {
+          aDurSlots = Math.ceil((a.duracao_minutos || 60) / 60);
         }
         return slotH >= aHoraInicio && slotH < aHoraInicio + aDurSlots;
       }).length;
