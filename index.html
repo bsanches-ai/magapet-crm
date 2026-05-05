@@ -2044,7 +2044,9 @@ function selectAdicional(el, i, nome, preco, isLivre) {
 
 function onDesembaracoNivelChange(nivel) {
   const livreWrap = document.getElementById('adicionalValorLivreWrap');
-  if (nivel === '5') {
+  // Compara como string e número (banco pode retornar int)
+  const isUltimo = String(nivel) === String(DESEMBARACO_NIVEIS[DESEMBARACO_NIVEIS.length - 1]?.nivel) || DESEMBARACO_NIVEIS.find(n => String(n.nivel) === String(nivel) && n.preco === null);
+  if (isUltimo) {
     livreWrap.style.display = 'block';
     document.getElementById('adicionalValorLivre').value = '';
     document.getElementById('adicionalValorLivre').placeholder = 'Ex: 100';
