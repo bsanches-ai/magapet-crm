@@ -3484,23 +3484,27 @@ function getDuracaoEncaixe() {
   const porte = porteEl?.value || clienteAtual?.petSelecionado?.porte || '';
   const pelagem = pelagemEl?.value || clienteAtual?.petSelecionado?.pelagem || null;
 
-  if (!servicoId || !porte || porte === 'GG') return 60; // GG padrão
+  if (!servicoId || !porte) return 60;
 
-  const porteNorm = porte === 'M' ? 'M' : porte;
+  // Busca com pelagem exata
   const dur = DURACOES_TENANT.find(d =>
     d.servico_id === servicoId &&
-    d.porte === porteNorm &&
-    (pelagem ? d.pelagem === pelagem : true) &&
-    (d.pelagem === null || d.pelagem === pelagem)
+    d.porte === porte &&
+    (pelagem ? d.pelagem === pelagem : (d.pelagem === null || d.pelagem === pelagem))
   );
+  if (dur) return dur.duracao_minutos;
 
-  // Se M sem pelagem definida, pega o maior
-  if (porte === 'M' && !pelagem) {
-    const durs = DURACOES_TENANT.filter(d => d.servico_id === servicoId && d.porte === 'M');
-    if (durs.length) return Math.max(...durs.map(d => d.duracao_minutos));
-  }
+  // Sem pelagem (null no banco)
+  const durNull = DURACOES_TENANT.find(d =>
+    d.servico_id === servicoId && d.porte === porte && d.pelagem === null
+  );
+  if (durNull) return durNull.duracao_minutos;
 
-  return dur?.duracao_minutos || 60;
+  // Qualquer pelagem do porte — pega o maior
+  const dursPorte = DURACOES_TENANT.filter(d => d.servico_id === servicoId && d.porte === porte);
+  if (dursPorte.length) return Math.max(...dursPorte.map(d => d.duracao_minutos));
+
+  return 60;
 }
 
 function getTipoServico() {
@@ -3552,7 +3556,10 @@ async function atualizarHorarios() {
     const res = await fetch(`${N8N_LEITURA}/agenda?tenant_id=${TENANT_ID}&data=${dataVal}`);
     if (res.ok) {
       const raw = await res.json();
-      agsDia = Array.isArray(raw) ? raw.filter(a => !a._empty && !['cancelado','entregue'].includes(a.status)) : [];
+      // Desempacota wrapper { json: {...} } se necessário
+      let lista = Array.isArray(raw) ? raw : [];
+      if (lista.length && lista[0]?.json) lista = lista.map(i => i.json);
+      agsDia = lista.filter(a => !a._empty && !['cancelado','entregue'].includes(a.status));
     }
   } catch {
     agsDia = agendamentos.filter(a =>
@@ -3577,7 +3584,14 @@ async function atualizarHorarios() {
         const aTipo = aServico?.categoria === 'tosa' ? 'tosa' : 'banho';
         if (tipo !== aTipo) return false;
         const aDurSlots = Math.ceil((a.duracao_minutos || 60) / 60);
-        const aHoraInicio = parseInt(a.hora?.split(':')[0] || '0');
+        // Resolve hora do agendamento: campo hora, ou extrai do data_hora
+        let aHoraInicio = 0;
+        if (a.hora) {
+          aHoraInicio = parseInt(a.hora.split(':')[0]);
+        } else if (a.data_hora) {
+          const d = new Date(a.data_hora);
+          aHoraInicio = (d.getUTCHours() - 3 + 24) % 24;
+        }
         return slotH >= aHoraInicio && slotH < aHoraInicio + aDurSlots;
       }).length;
 
