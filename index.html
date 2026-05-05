@@ -2098,6 +2098,8 @@ let agEmEdicao = null;
 async function abrirEdicaoAgendamento(id) {
   agEmEdicao = agendamentos.find(a => a.id === id);
   if (!agEmEdicao) return;
+  agEmEdicao._porteOriginal = agEmEdicao.pet_porte;
+  agEmEdicao._porteNovo = null;
 
   document.getElementById('editAg-id').value = id;
   document.getElementById('editAg-telefone').value = agEmEdicao.tutor_telefone || '';
@@ -2116,33 +2118,41 @@ async function abrirEdicaoAgendamento(id) {
   // Sempre mostra pelagem no editar agendamento
   pelagemGroup.style.display = 'flex';
 
-  // Preenche select de serviço
+  // Preenche select de serviço — value é ID, busca por nome
   const servicoEl = document.getElementById('editAg-servico');
+  const servicoAtual = SERVICOS_TENANT.find(s => s.nome === agEmEdicao.servico || s.id === agEmEdicao.servico_id);
   for (let opt of servicoEl.options) {
-    if (opt.value === agEmEdicao.servico) { opt.selected = true; break; }
+    if (servicoAtual && opt.value === servicoAtual.id) { opt.selected = true; break; }
+  }
+  if (servicoAtual) {
+    agEmEdicao.servico_id = servicoAtual.id;
+    agEmEdicao._servico_precos = servicoAtual;
   }
 
   // Preenche select de pet (busca pets do cliente)
   const petEl = document.getElementById('editAg-pet');
   petEl.innerHTML = '<option value="">Selecione...</option>';
   const cliente = todosClientes.find(c => c.telefone === agEmEdicao.tutor_telefone);
-  if (cliente?.pets) {
+  if (cliente?.pets?.length) {
     cliente.pets.forEach(p => {
       const nome = typeof p === 'string' ? p : p.nome;
       const pid = typeof p === 'object' ? p.id : '';
       const opt = document.createElement('option');
       opt.value = pid;
       opt.textContent = nome;
-      opt.selected = nome === agEmEdicao.pet_nome;
+      opt.selected = nome === agEmEdicao.pet_nome || pid === agEmEdicao.pet_id;
       petEl.appendChild(opt);
     });
   } else {
     const opt = document.createElement('option');
     opt.value = agEmEdicao.pet_id || '';
-    opt.textContent = agEmEdicao.pet_nome;
+    opt.textContent = agEmEdicao.pet_nome || '';
     opt.selected = true;
     petEl.appendChild(opt);
   }
+  // Garante pet_id setado
+  const petOpt = petEl.options[petEl.selectedIndex];
+  if (petOpt?.value) agEmEdicao.pet_id = petOpt.value;
 
   await atualizarHorariosEdicao();
   document.getElementById('modalEditarAgendamento').classList.add('open');
@@ -2258,8 +2268,10 @@ async function salvarEdicaoAgendamento() {
   const data = document.getElementById('editAg-data').value;
   const horario = document.getElementById('editAg-horario').value;
   const servico = document.getElementById('editAg-servico').value;
-  const petId = document.getElementById('editAg-pet').value;
-  const petNome = document.getElementById('editAg-pet').options[document.getElementById('editAg-pet').selectedIndex]?.text;
+  const petEl2 = document.getElementById('editAg-pet');
+  const petId = petEl2.value || agEmEdicao?.pet_id || '';
+  const petNomeRaw = petEl2.options[petEl2.selectedIndex]?.text || '';
+  const petNome = (petNomeRaw && petNomeRaw !== 'Selecione...') ? petNomeRaw : (agEmEdicao?.pet_nome || '');
   const porte = document.getElementById('editAg-porte').value;
   const pelagem = document.getElementById('editAg-pelagem')?.value || '';
   const telefone = document.getElementById('editAg-telefone').value;
