@@ -2041,19 +2041,6 @@ function selectAdicional(el, i, nome, preco, isLivre) {
   toggleAdicional(el);
 }
 
-function onDesembaracoNivelChange(nivel) {
-  const livreWrap = document.getElementById('adicionalValorLivreWrap');
-  const nivelConfig = DESEMBARACO_NIVEIS.find(n => String(n.nivel) === String(nivel));
-  if (nivelConfig && nivelConfig.preco === null) {
-    livreWrap.style.display = 'block';
-    document.getElementById('adicionalValorLivre').value = '';
-    document.getElementById('adicionalValorLivre').placeholder = 'Ex: 100';
-  } else {
-    livreWrap.style.display = 'none';
-    document.getElementById('adicionalValorLivre').value = '';
-  }
-}
-
 async function confirmarAdicional() {
   if (!selectedAdicionais.length) { showToast('Selecione ao menos um adicional', 'error'); return; }
 
@@ -3493,23 +3480,31 @@ function getDuracaoEncaixe() {
   const porte = porteEl?.value || clienteAtual?.petSelecionado?.porte || '';
   const pelagem = pelagemEl?.value || clienteAtual?.petSelecionado?.pelagem || null;
 
-  if (!servicoId || !porte || porte === 'GG') return 60; // GG padrão
+  if (!servicoId || !porte) return 60;
 
-  const porteNorm = porte === 'M' ? 'M' : porte;
+  // Busca no banco considerando porte e pelagem
   const dur = DURACOES_TENANT.find(d =>
     d.servico_id === servicoId &&
-    d.porte === porteNorm &&
-    (pelagem ? d.pelagem === pelagem : true) &&
-    (d.pelagem === null || d.pelagem === pelagem)
+    d.porte === porte &&
+    (pelagem ? d.pelagem === pelagem : (d.pelagem === null || d.pelagem === pelagem))
   );
 
-  // Se M sem pelagem definida, pega o maior
-  if (porte === 'M' && !pelagem) {
-    const durs = DURACOES_TENANT.filter(d => d.servico_id === servicoId && d.porte === 'M');
-    if (durs.length) return Math.max(...durs.map(d => d.duracao_minutos));
-  }
+  if (dur) return dur.duracao_minutos;
 
-  return dur?.duracao_minutos || 60;
+  // Se não achou com pelagem, tenta sem (pelagem null)
+  const durSemPelagem = DURACOES_TENANT.find(d =>
+    d.servico_id === servicoId &&
+    d.porte === porte &&
+    d.pelagem === null
+  );
+
+  if (durSemPelagem) return durSemPelagem.duracao_minutos;
+
+  // Se não achou o porte exato, pega qualquer duração do serviço+porte sem filtrar pelagem
+  const dursPorte = DURACOES_TENANT.filter(d => d.servico_id === servicoId && d.porte === porte);
+  if (dursPorte.length) return Math.max(...dursPorte.map(d => d.duracao_minutos));
+
+  return 60;
 }
 
 function getTipoServico() {
