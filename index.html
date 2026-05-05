@@ -2223,33 +2223,37 @@ async function atualizarHorariosEdicao() {
 function onPorteEdicaoChange(porte) {
   const pelagemGroup = document.getElementById('editAg-pelagemGroup');
   pelagemGroup.style.display = porte ? 'flex' : 'none';
-  // NÃO atualiza agEmEdicao.pet_porte aqui — só atualiza ao salvar
-  // para preservar _porteOriginal para comparação
-  if (agEmEdicao) agEmEdicao._porteNovo = porte; // guarda temporariamente
-  buscarPrecoServico(document.getElementById('editAg-servico').value, porte);
+  // Guarda porte novo temporariamente sem sobrescrever pet_porte
+  // (preserva _porteOriginal para comparação no save)
+  if (agEmEdicao) {
+    agEmEdicao._porteNovo = porte;
+    // Recalcula valor usando SERVICOS_TENANT local (sem fetch)
+    const servicoId = document.getElementById('editAg-servico').value;
+    const servico = SERVICOS_TENANT.find(s => s.id === servicoId);
+    if (servico) {
+      agEmEdicao._servico_precos = servico;
+      const MAPA = { 'PP':'preco_pp_novo','P':'preco_p_novo','M':'preco_m_novo','G':'preco_g_novo' };
+      const col = MAPA[porte];
+      if (col) agEmEdicao.valor = parseFloat(servico[col]) || 0;
+    }
+    renderAgenda();
+  }
   atualizarHorariosEdicao();
 }
 
-async function buscarPrecoServico(servicoNome, porteOverride) {
-  if (!servicoNome || !agEmEdicao) return;
-  try {
-    const res = await fetch(`${N8N_LEITURA}/buscar-servico?tenant_id=${TENANT_ID}&nome=${encodeURIComponent(servicoNome)}`);
-    if (res.ok) {
-      const raw = await res.json();
-      const s = Array.isArray(raw) ? raw[0] : raw;
-      if (s && s.id) {
-        agEmEdicao._servico_precos = s;
-        // Usa porteOverride se veio do onPorteEdicaoChange, senão usa pet_porte atual
-        const porteParaCalculo = porteOverride || agEmEdicao._porteNovo || agEmEdicao.pet_porte;
-        const MAPA = { 'PP':'preco_pp_novo','P':'preco_p_novo','M':'preco_m_novo','M pelo curto':'preco_m_novo','M pelo longo':'preco_m_novo','G':'preco_g_novo' };
-        const col = MAPA[porteParaCalculo];
-        agEmEdicao.valor = col ? (parseFloat(s[col]) || 0) : 0;
-        agEmEdicao.servico = servicoNome;
-        renderAgenda();
-      }
-    }
-  } catch(e) {
-    console.warn('buscarPrecoServico error:', e.message);
+async function buscarPrecoServico(servicoId) {
+  // Busca direto no SERVICOS_TENANT local pelo ID (sem fetch desnecessário)
+  if (!servicoId || !agEmEdicao) return;
+  const servico = SERVICOS_TENANT.find(s => s.id === servicoId);
+  if (servico) {
+    agEmEdicao._servico_precos = servico;
+    const porteAtual = agEmEdicao._porteNovo || agEmEdicao.pet_porte;
+    const MAPA = { 'PP':'preco_pp_novo','P':'preco_p_novo','M':'preco_m_novo','G':'preco_g_novo' };
+    const col = MAPA[porteAtual];
+    if (col) agEmEdicao.valor = parseFloat(servico[col]) || 0;
+    // Atualiza nome do serviço no agendamento
+    agEmEdicao.servico = servico.nome;
+    renderAgenda();
   }
 }
 
@@ -2260,7 +2264,7 @@ async function salvarEdicaoAgendamento() {
   const servico = document.getElementById('editAg-servico').value;
   const petId = document.getElementById('editAg-pet').value;
   const petNome = document.getElementById('editAg-pet').options[document.getElementById('editAg-pet').selectedIndex]?.text;
-  const porte = document.getElementById('editAg-porte').value || agEmEdicao?._porteNovo || '';
+  const porte = document.getElementById('editAg-porte').value;
   const pelagem = document.getElementById('editAg-pelagem')?.value || '';
   const telefone = document.getElementById('editAg-telefone').value;
   const tutorNome = document.getElementById('editAg-tutor-nome').value;
@@ -2274,8 +2278,10 @@ async function salvarEdicaoAgendamento() {
   const horarioAtual = String(spH).padStart(2,'0') + ':00';
   const mudouDataHorario = data !== dataAtual || horario !== horarioAtual;
 
-  // Atualiza porte no banco ANTES de reagendar, se mudou
+  // Porte final: prioriza o que foi selecionado no modal
   const porteFinal = agEmEdicao?._porteNovo || porte || agEmEdicao?.pet_porte || '';
+
+  // Atualiza porte no banco ANTES de reagendar, se mudou
   if (agEmEdicao?.pet_id && porteFinal && porteFinal !== agEmEdicao._porteOriginal) {
     try {
       await fetch(`${N8N_ATENDIMENTO}/update-pet`, {
@@ -2289,11 +2295,11 @@ async function salvarEdicaoAgendamento() {
         })
       });
     } catch {}
-    const MAPA = { 'PP':'preco_pp_novo','P':'preco_p_novo','M':'preco_m_novo','M pelo curto':'preco_m_novo','M pelo longo':'preco_m_novo','G':'preco_g_novo' };
-    if (agEmEdicao._servico_precos && MAPA[porteFinal]) {
-      agEmEdicao.valor = parseFloat(agEmEdicao._servico_precos[MAPA[porteFinal]]) || 0;
-    }
   }
+
+  // Nome do serviço: pega do SERVICOS_TENANT pelo ID selecionado
+  const servicoSelecionado = SERVICOS_TENANT.find(s => s.id === servico);
+  const servicoNomeFinal = servicoSelecionado?.nome || agEmEdicao?.servico || servico;
 
   try {
     await fetch(`${N8N_ATENDIMENTO}/reagendar`, {
@@ -2303,7 +2309,7 @@ async function salvarEdicaoAgendamento() {
         tenant_id: TENANT_ID,
         agendamento_id: id,
         data, horario,
-        servico_nome: servico,
+        servico_nome: servicoNomeFinal,
         pet_id: petId,
         pet_nome: petNome,
         pet_porte: porteFinal,
@@ -2323,8 +2329,7 @@ async function salvarEdicaoAgendamento() {
     const utcH = (parseInt(h) + 3) % 24;
     agEmEdicao.data_hora = `${data}T${String(utcH).padStart(2,'0')}:${m}:00+00:00`;
     agEmEdicao.hora = horario;
-    agEmEdicao.servico = servico;
-    agEmEdicao.servico_nome = servico;
+    if (servicoNomeFinal) { agEmEdicao.servico = servicoNomeFinal; agEmEdicao.servico_nome = servicoNomeFinal; }
     if (porteFinal) { agEmEdicao.pet_porte = porteFinal; agEmEdicao._porteOriginal = porteFinal; agEmEdicao._porteNovo = null; }
     if (pelagem) agEmEdicao.pet_pelagem = pelagem;
     if (petId) agEmEdicao.pet_id = petId;
@@ -2671,8 +2676,14 @@ async function salvarEncaixe() {
         pet_id: petId,
         pet_porte: clienteAtual?.petSelecionado?.porte || document.getElementById('petPorte')?.value || '',
         pet_pelagem: clienteAtual?.petSelecionado?.pelagem || document.getElementById('petPelagem')?.value || '',
-        pet_raca: document.getElementById('petRaca')?.value || '',
-        pet_sexo: document.getElementById('petSexo')?.value || 'M',
+        pet_raca: (() => {
+          const g = document.getElementById('petRacaGroup');
+          return g?.style.display !== 'none' ? (document.getElementById('petRaca')?.value || '') : (clienteAtual?.petSelecionado?.raca || '');
+        })(),
+        pet_sexo: (() => {
+          const g = document.getElementById('petSexoGroup');
+          return g?.style.display !== 'none' ? (document.getElementById('petSexo')?.value || 'M') : (clienteAtual?.petSelecionado?.sexo || 'M');
+        })(),
         servico,
         servico_nome: document.getElementById('servicoSelect').options[document.getElementById('servicoSelect').selectedIndex]?.text || servico,
         data,
@@ -2695,14 +2706,8 @@ async function salvarEncaixe() {
     id: 'enc-' + Date.now(),
     hora: horario,
     pet_nome: petNome,
-    pet_raca: (() => {
-      const g = document.getElementById('petRacaGroup');
-      return g?.style.display !== 'none' ? (document.getElementById('petRaca')?.value || '') : (clienteAtual?.petSelecionado?.raca || '');
-    })(),
-    pet_sexo: (() => {
-      const g = document.getElementById('petSexoGroup');
-      return g?.style.display !== 'none' ? (document.getElementById('petSexo')?.value || 'M') : (clienteAtual?.petSelecionado?.sexo || 'M');
-    })(),
+    pet_raca: document.getElementById('petRaca')?.value || '',
+    pet_sexo: document.getElementById('petSexo')?.value || 'M',
     pet_porte: porte,
     pet_pelagem: pelagem,
     servico: servicoData?.nome || servico,
