@@ -809,7 +809,10 @@
           </div>
           <div class="form-group">
             <label class="form-label">WhatsApp *</label>
-            <input class="form-input" type="tel" id="tutorTel" placeholder="(11) 99999-9999">
+            <input class="form-input" type="tel" id="tutorTel" placeholder="(11) 99999-9999" oninput="verificarBloqueioTel(this.value)">
+            <div id="avisoBloqueio" style="display:none;background:rgba(217,95,82,0.08);border:1px solid rgba(217,95,82,0.3);border-radius:8px;padding:10px 14px;font-size:12px;color:#d95f52;margin-top:6px;">
+              🚫 Este cliente está bloqueado e não pode ser agendado.
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label">Nome do pet *</label>
@@ -1006,7 +1009,10 @@
 
     <!-- CLIENTES PAGE -->
     <div class="page" id="page-clientes">
-      <div class="section-title">Clientes</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div class="section-title" style="margin:0;">Clientes</div>
+        <button class="btn btn-adicional" onclick="abrirNovoCliente()">+ Novo cliente</button>
+      </div>
       <div class="form-group" style="max-width: 400px; margin-bottom: 20px;">
         <input class="form-input" type="text" placeholder="🔍 Buscar por nome ou telefone..." id="searchClientes" oninput="searchClientes(this.value)">
       </div>
@@ -1019,6 +1025,25 @@
       <div id="fichaContent"></div>
     </div>
 
+  </div>
+</div>
+
+<!-- MODAL NOVO CLIENTE -->
+<div class="modal-overlay" id="modalNovoCliente">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-title">👤 Novo cliente</div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Nome *</label>
+      <input class="modal-input" id="novo-cliente-nome" type="text" placeholder="Nome completo" style="margin:0;">
+    </div>
+    <div class="form-group" style="margin-bottom:16px;">
+      <label class="form-label">WhatsApp *</label>
+      <input class="modal-input" id="novo-cliente-tel" type="tel" placeholder="(11) 99999-9999" style="margin:0;">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeModal('modalNovoCliente')">Cancelar</button>
+      <button class="btn-modal-primary" onclick="salvarNovoCliente()">Salvar</button>
+    </div>
   </div>
 </div>
 
@@ -1403,6 +1428,8 @@ let currentPetId = null;
 let selectedAdicional = null;
 let clienteAtual = null;
 
+let clientesBloqueados = new Set(); // telefones bloqueados
+
 // Config do tenant (carregada do banco)
 let CAPACIDADE_DIA = {
   0: { banho: 2, tosa: 2 },
@@ -1696,7 +1723,7 @@ function renderAgenda() {
     .filter(a => a.pet_nome && a.pet_nome !== 'undefined' && a.tutor_nome && a.tutor_nome !== 'undefined')
     .filter(a => {
       const s = snorm[a.status] || 'aguardando';
-      if (activeFilters.has('todos')) return true;
+      if (activeFilters.has('todos')) return s !== 'cancelado';
       return activeFilters.has(s);
     })
     .sort((a, b) => a.hora.localeCompare(b.hora));
@@ -1788,7 +1815,14 @@ function renderCard(ag) {
                   onchange="atualizarValorPremium('${ag.id}', this.value)"
                   onclick="event.stopPropagation()"
                   title="Valor do serviço GG">
-                ${ag.adicionais_valor ? `<span style="font-size:11px;color:var(--blue);">+ ${formatMoney(ag.adicionais_valor)} adicionais</span><span style="font-size:12px;font-weight:700;color:var(--blue);">= ${formatMoney((ag.valor||0) + ag.adicionais_valor)}</span>` : ''}
+                ${(() => {
+                  const totalGG = (ag.valor || 0) + (ag.adicionais_valor || 0);
+                  const totalComDesc = totalGG - (ag.desconto || 0);
+                  if (!ag.adicionais_valor && !ag.desconto) return '';
+                  return `${ag.adicionais_valor ? `<span style="font-size:11px;color:var(--blue);">+ ${formatMoney(ag.adicionais_valor)} adicionais</span>` : ''}
+                    ${ag.desconto ? `<span style="font-size:11px;color:var(--green);">- ${formatMoney(ag.desconto)} desconto</span>` : ''}
+                    <span style="font-size:12px;font-weight:700;color:var(--blue);">= ${formatMoney(totalComDesc)}</span>`;
+                })()}
               </div>`
             : ag.saldo_pacote
               ? `<span class="service-value" style="color:var(--green);">${ag.adicionais_valor ? formatMoney(ag.adicionais_valor) : 'R$ 0'}</span>`
@@ -1859,8 +1893,8 @@ function updateSummary() {
     if (s === 'entregue') receita += a.valor + (a.adicionais_valor || 0);
   });
 
-  // Todos mostra todos os status
-  document.getElementById('fc-todos').textContent = agendamentos.length;
+  // Todos exclui cancelados
+  document.getElementById('fc-todos').textContent = agendamentos.filter(a => (statusNorm[a.status] || 'aguardando') !== 'cancelado').length;
   document.getElementById('fc-aguardando').textContent = counts.aguardando;
   document.getElementById('fc-atendendo').textContent = counts.atendendo;
   document.getElementById('fc-pronto').textContent = counts.pronto;
@@ -1980,13 +2014,21 @@ function abrirBloqueio(id, nome) {
 async function confirmarBloqueio() {
   const motivo = document.getElementById('motivoBloqueio').value;
   if (!motivo.trim()) { showToast('Informe o motivo', 'error'); return; }
+  const ag = agendamentos.find(a => a.id === currentCardId);
   try {
     await fetch(`${N8N_ATENDIMENTO}/bloquear`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: currentCardId, motivo })
+      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: currentCardId, motivo, tutor_telefone: ag?.tutor_telefone })
     });
   } catch {}
+  if (ag?.tutor_telefone) {
+    clientesBloqueados.add(ag.tutor_telefone);
+    clientesBloqueados.add(ag.tutor_telefone.replace(/\D/g, ''));
+    // Marca no cliente local também
+    const c = todosClientes.find(cl => cl.telefone?.replace(/\D/g,'') === ag.tutor_telefone.replace(/\D/g,''));
+    if (c) c.bloqueado = true;
+  }
   closeModal('modalBloquear');
   showToast('Cliente bloqueado', 'success');
   agendamentos = agendamentos.filter(a => a.id !== currentCardId);
@@ -2283,6 +2325,16 @@ async function atualizarHorariosEdicao() {
 function onPorteEdicaoChange(porte) {
   const pelagemGroup = document.getElementById('editAg-pelagemGroup');
   pelagemGroup.style.display = porte ? 'flex' : 'none';
+
+  // Trimming só disponível para porte GG
+  const servicoEl = document.getElementById('editAg-servico');
+  for (let opt of servicoEl.options) {
+    if (opt.text && opt.text.toLowerCase().includes('trimming')) {
+      opt.style.display = porte === 'GG' ? '' : 'none';
+      if (porte !== 'GG' && opt.selected) servicoEl.value = '';
+    }
+  }
+
   if (agEmEdicao) {
     agEmEdicao._porteNovo = porte;
     const servicoId = document.getElementById('editAg-servico').value;
@@ -2576,6 +2628,15 @@ function onPorteChange(porte) {
     avisoEl.style.display = 'none';
   }
 
+  // Trimming só disponível para porte GG
+  const servicoEl = document.getElementById('servicoSelect');
+  for (let opt of servicoEl.options) {
+    if (opt.text && opt.text.toLowerCase().includes('trimming')) {
+      opt.style.display = porte === 'GG' ? '' : 'none';
+      if (porte !== 'GG' && opt.selected) servicoEl.value = '';
+    }
+  }
+
   atualizarHorarios();
 }
 
@@ -2629,6 +2690,8 @@ function selectCliente(c) {
   document.getElementById('tutorTel').value = c.telefone;
   document.getElementById('searchClient').value = c.nome;
   document.getElementById('searchResults').innerHTML = '';
+  // Verifica bloqueio ao selecionar cliente
+  verificarBloqueioTel(c.telefone);
   // Esconde campos de pet até selecionar pet novo ou existente
   document.getElementById('petRacaGroup').style.display = 'none';
   document.getElementById('petSexoGroup').style.display = 'none';
@@ -2697,6 +2760,14 @@ function selectNovoPet(el) {
   document.getElementById('petNome').focus();
 }
 
+function verificarBloqueioTel(tel) {
+  const telLimpo = tel.replace(/\D/g, '');
+  const aviso = document.getElementById('avisoBloqueio');
+  const clienteBloqueado = todosClientes.find(c => c.telefone?.replace(/\D/g,'') === telLimpo && c.bloqueado);
+  const bloqueado = clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpo) || !!clienteBloqueado;
+  aviso.style.display = bloqueado ? 'block' : 'none';
+}
+
 async function salvarEncaixe() {
   const nome = document.getElementById('tutorNome').value.trim();
   const tel = document.getElementById('tutorTel').value.trim();
@@ -2707,6 +2778,13 @@ async function salvarEncaixe() {
   const horario = document.getElementById('horarioSelect').value;
 
   const faltando = [];
+  // Verifica bloqueio
+  const telLimpo = tel.replace(/\D/g, '');
+  const clienteBloqueadoEnc = todosClientes.find(c => c.telefone?.replace(/\D/g,'') === telLimpo && c.bloqueado);
+  if (clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpo) || clienteBloqueadoEnc) {
+    showToast('🚫 Cliente bloqueado — não é possível agendar', 'error');
+    return;
+  }
   if (!nome) faltando.push('Nome do tutor');
   if (!tel) faltando.push('WhatsApp');
   if (!petNome) faltando.push('Pet');
@@ -3230,6 +3308,37 @@ function onDatePickerChange(val) {
 
 
 const MOCK_PACOTES = [];
+
+// =====================
+// NOVO CLIENTE
+// =====================
+function abrirNovoCliente() {
+  document.getElementById('novo-cliente-nome').value = '';
+  document.getElementById('novo-cliente-tel').value = '';
+  document.getElementById('modalNovoCliente').classList.add('open');
+}
+
+async function salvarNovoCliente() {
+  const nome = document.getElementById('novo-cliente-nome').value.trim();
+  const tel = document.getElementById('novo-cliente-tel').value.trim();
+  if (!nome || !tel) { showToast('Nome e WhatsApp são obrigatórios', 'error'); return; }
+
+  let id = crypto.randomUUID();
+  try {
+    const res = await fetch(`${N8N_CADASTRO}/novo-cliente`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: TENANT_ID, nome, telefone: tel })
+    });
+    if (res.ok) { const r = await res.json(); id = r.id || id; }
+  } catch {}
+
+  const novoCliente = { id, nome, telefone: tel, pets: [] };
+  todosClientes.unshift(novoCliente);
+  renderClientes(todosClientes);
+  closeModal('modalNovoCliente');
+  showToast(`${nome} cadastrado ✓`, 'success');
+}
 
 // =====================
 // PACOTES
