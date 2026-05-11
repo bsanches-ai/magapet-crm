@@ -1428,7 +1428,7 @@ let currentPetId = null;
 let selectedAdicional = null;
 let clienteAtual = null;
 
-let clientesBloqueados = new Set(); // telefones bloqueados
+let clientesBloqueados = new Set(); // telefones bloqueados (sem formatação e com)
 
 // Config do tenant (carregada do banco)
 let CAPACIDADE_DIA = {
@@ -1615,15 +1615,17 @@ async function loadConfig() {
   } catch(e) { console.warn('loadAdicionais error:', e.message); }
 }
 
-function renderSelectsServicos() {
+function renderSelectsServicos(porteEncaixe, porteEdicao) {
   if (!SERVICOS_TENANT.length) return;
 
   const banho = SERVICOS_TENANT.filter(s => s.categoria === 'banho');
-  const tosa = SERVICOS_TENANT.filter(s => s.categoria === 'tosa');
+  const tosa  = SERVICOS_TENANT.filter(s => s.categoria === 'tosa');
 
-  function buildOptions(lista) {
+  function buildOptions(lista, porte) {
     return lista.map(s => {
       const tipo = s.categoria === 'tosa' ? 'tosa' : 'banho';
+      // Trimming só aparece para porte GG
+      if (s.nome && s.nome.toLowerCase().includes('trimming') && porte !== 'GG') return '';
       return `<option value="${s.id}" data-nome="${s.nome}" data-tipo="${tipo}" data-gg="${s.preco_gg_livre}">${s.nome}</option>`;
     }).join('');
   }
@@ -1631,19 +1633,26 @@ function renderSelectsServicos() {
   // Select encaixe
   const encaixeEl = document.getElementById('servicoSelect');
   if (encaixeEl) {
+    const pEnc = porteEncaixe || document.getElementById('petPorte')?.value || '';
+    const curVal = encaixeEl.value;
     encaixeEl.innerHTML = `
       <option value="">Selecione...</option>
-      <optgroup label="Banho">${buildOptions(banho)}</optgroup>
-      <optgroup label="Banho + Tosa">${buildOptions(tosa)}</optgroup>`;
+      <optgroup label="Banho">${buildOptions(banho, pEnc)}</optgroup>
+      <optgroup label="Banho + Tosa">${buildOptions(tosa, pEnc)}</optgroup>`;
+    // Mantém seleção se ainda válida; senão limpa
+    if (curVal && encaixeEl.querySelector(`option[value="${curVal}"]`)) encaixeEl.value = curVal;
   }
 
   // Select editar agendamento
   const editEl = document.getElementById('editAg-servico');
   if (editEl) {
+    const pEdit = porteEdicao || document.getElementById('editAg-porte')?.value || '';
+    const curVal = editEl.value;
     editEl.innerHTML = `
       <option value="">Selecione...</option>
-      <optgroup label="Banho">${buildOptions(banho)}</optgroup>
-      <optgroup label="Banho + Tosa">${buildOptions(tosa)}</optgroup>`;
+      <optgroup label="Banho">${buildOptions(banho, pEdit)}</optgroup>
+      <optgroup label="Banho + Tosa">${buildOptions(tosa, pEdit)}</optgroup>`;
+    if (curVal && editEl.querySelector(`option[value="${curVal}"]`)) editEl.value = curVal;
   }
 }
 
@@ -1819,9 +1828,9 @@ function renderCard(ag) {
                   const totalGG = (ag.valor || 0) + (ag.adicionais_valor || 0);
                   const totalComDesc = totalGG - (ag.desconto || 0);
                   if (!ag.adicionais_valor && !ag.desconto) return '';
-                  return `${ag.adicionais_valor ? `<span style="font-size:11px;color:var(--blue);">+ ${formatMoney(ag.adicionais_valor)} adicionais</span>` : ''}
-                    ${ag.desconto ? `<span style="font-size:11px;color:var(--green);">- ${formatMoney(ag.desconto)} desconto</span>` : ''}
-                    <span style="font-size:12px;font-weight:700;color:var(--blue);">= ${formatMoney(totalComDesc)}</span>`;
+                  return (ag.adicionais_valor ? `<span style="font-size:11px;color:var(--blue);">+ ${formatMoney(ag.adicionais_valor)} adicionais</span>` : '')
+                    + (ag.desconto ? `<span style="font-size:11px;color:var(--green);">- ${formatMoney(ag.desconto)} desconto</span>` : '')
+                    + `<span style="font-size:12px;font-weight:700;color:var(--blue);">= ${formatMoney(totalComDesc)}</span>`;
                 })()}
               </div>`
             : ag.saldo_pacote
@@ -2025,7 +2034,6 @@ async function confirmarBloqueio() {
   if (ag?.tutor_telefone) {
     clientesBloqueados.add(ag.tutor_telefone);
     clientesBloqueados.add(ag.tutor_telefone.replace(/\D/g, ''));
-    // Marca no cliente local também
     const c = todosClientes.find(cl => cl.telefone?.replace(/\D/g,'') === ag.tutor_telefone.replace(/\D/g,''));
     if (c) c.bloqueado = true;
   }
@@ -2326,14 +2334,8 @@ function onPorteEdicaoChange(porte) {
   const pelagemGroup = document.getElementById('editAg-pelagemGroup');
   pelagemGroup.style.display = porte ? 'flex' : 'none';
 
-  // Trimming só disponível para porte GG
-  const servicoEl = document.getElementById('editAg-servico');
-  for (let opt of servicoEl.options) {
-    if (opt.text && opt.text.toLowerCase().includes('trimming')) {
-      opt.style.display = porte === 'GG' ? '' : 'none';
-      if (porte !== 'GG' && opt.selected) servicoEl.value = '';
-    }
-  }
+  // Reconstrói select de serviços filtrando trimming por porte
+  renderSelectsServicos(null, porte);
 
   if (agEmEdicao) {
     agEmEdicao._porteNovo = porte;
@@ -2628,14 +2630,8 @@ function onPorteChange(porte) {
     avisoEl.style.display = 'none';
   }
 
-  // Trimming só disponível para porte GG
-  const servicoEl = document.getElementById('servicoSelect');
-  for (let opt of servicoEl.options) {
-    if (opt.text && opt.text.toLowerCase().includes('trimming')) {
-      opt.style.display = porte === 'GG' ? '' : 'none';
-      if (porte !== 'GG' && opt.selected) servicoEl.value = '';
-    }
-  }
+  // Reconstrói select de serviços filtrando trimming por porte
+  renderSelectsServicos(porte, null);
 
   atualizarHorarios();
 }
@@ -2690,7 +2686,6 @@ function selectCliente(c) {
   document.getElementById('tutorTel').value = c.telefone;
   document.getElementById('searchClient').value = c.nome;
   document.getElementById('searchResults').innerHTML = '';
-  // Verifica bloqueio ao selecionar cliente
   verificarBloqueioTel(c.telefone);
   // Esconde campos de pet até selecionar pet novo ou existente
   document.getElementById('petRacaGroup').style.display = 'none';
@@ -2763,6 +2758,7 @@ function selectNovoPet(el) {
 function verificarBloqueioTel(tel) {
   const telLimpo = tel.replace(/\D/g, '');
   const aviso = document.getElementById('avisoBloqueio');
+  if (!aviso) return;
   const clienteBloqueado = todosClientes.find(c => c.telefone?.replace(/\D/g,'') === telLimpo && c.bloqueado);
   const bloqueado = clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpo) || !!clienteBloqueado;
   aviso.style.display = bloqueado ? 'block' : 'none';
@@ -2778,10 +2774,10 @@ async function salvarEncaixe() {
   const horario = document.getElementById('horarioSelect').value;
 
   const faltando = [];
-  // Verifica bloqueio
-  const telLimpo = tel.replace(/\D/g, '');
-  const clienteBloqueadoEnc = todosClientes.find(c => c.telefone?.replace(/\D/g,'') === telLimpo && c.bloqueado);
-  if (clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpo) || clienteBloqueadoEnc) {
+  // Bloqueia se cliente estiver na lista de bloqueados
+  const telLimpoEnc = tel.replace(/\D/g, '');
+  const clienteBloqEnc = todosClientes.find(c => c.telefone?.replace(/\D/g,'') === telLimpoEnc && c.bloqueado);
+  if (clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpoEnc) || clienteBloqEnc) {
     showToast('🚫 Cliente bloqueado — não é possível agendar', 'error');
     return;
   }
@@ -3320,7 +3316,7 @@ function abrirNovoCliente() {
 
 async function salvarNovoCliente() {
   const nome = document.getElementById('novo-cliente-nome').value.trim();
-  const tel = document.getElementById('novo-cliente-tel').value.trim();
+  const tel  = document.getElementById('novo-cliente-tel').value.trim();
   if (!nome || !tel) { showToast('Nome e WhatsApp são obrigatórios', 'error'); return; }
 
   let id = crypto.randomUUID();
