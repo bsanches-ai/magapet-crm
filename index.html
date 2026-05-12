@@ -792,8 +792,11 @@
       <div style="max-width: 560px;">
         <div class="form-group" style="margin-bottom: 16px;">
           <label class="form-label">Buscar cliente existente</label>
-          <input class="form-input" type="text" placeholder="Digite o telefone ou nome do pet..." id="searchClient" oninput="searchExistingClient(this.value)">
-          <div id="searchResults"></div>
+          <div style="display:flex;gap:8px;">
+            <input class="form-input" type="text" placeholder="Nome, telefone ou pet..." id="searchClient" onkeydown="if(event.key==='Enter') buscarClienteEncaixe()" style="flex:1;margin:0;">
+            <button class="btn btn-adicional" onclick="buscarClienteEncaixe()" style="white-space:nowrap;padding:10px 16px;">🔍 Buscar</button>
+          </div>
+          <div id="searchResults" style="margin-top:8px;"></div>
         </div>
 
         <div class="section-divider">
@@ -1428,7 +1431,7 @@ let currentPetId = null;
 let selectedAdicional = null;
 let clienteAtual = null;
 
-let clientesBloqueados = new Set();
+let clientesBloqueados = new Set(); // telefones bloqueados (sem formatação e com)
 
 // Config do tenant (carregada do banco)
 let CAPACIDADE_DIA = {
@@ -1624,11 +1627,13 @@ function renderSelectsServicos(porteEncaixe, porteEdicao) {
   function buildOptions(lista, porte) {
     return lista.map(s => {
       const tipo = s.categoria === 'tosa' ? 'tosa' : 'banho';
+      // Trimming só aparece para porte GG
       if (s.nome && s.nome.toLowerCase().includes('trimming') && porte !== 'GG') return '';
       return `<option value="${s.id}" data-nome="${s.nome}" data-tipo="${tipo}" data-gg="${s.preco_gg_livre}">${s.nome}</option>`;
     }).join('');
   }
 
+  // Select encaixe
   const encaixeEl = document.getElementById('servicoSelect');
   if (encaixeEl) {
     const pEnc = porteEncaixe || document.getElementById('petPorte')?.value || '';
@@ -1637,9 +1642,11 @@ function renderSelectsServicos(porteEncaixe, porteEdicao) {
       <option value="">Selecione...</option>
       <optgroup label="Banho">${buildOptions(banho, pEnc)}</optgroup>
       <optgroup label="Banho + Tosa">${buildOptions(tosa, pEnc)}</optgroup>`;
+    // Mantém seleção se ainda válida; senão limpa
     if (curVal && encaixeEl.querySelector(`option[value="${curVal}"]`)) encaixeEl.value = curVal;
   }
 
+  // Select editar agendamento
   const editEl = document.getElementById('editAg-servico');
   if (editEl) {
     const pEdit = porteEdicao || document.getElementById('editAg-porte')?.value || '';
@@ -2028,10 +2035,9 @@ async function confirmarBloqueio() {
     });
   } catch {}
   if (ag?.tutor_telefone) {
-    const tel = String(ag.tutor_telefone);
-    clientesBloqueados.add(tel);
-    clientesBloqueados.add(tel.replace(/\D/g, ''));
-    const c = todosClientes.find(cl => String(cl.telefone || '').replace(/\D/g,'') === tel.replace(/\D/g,''));
+    clientesBloqueados.add(ag.tutor_telefone);
+    clientesBloqueados.add(ag.tutor_telefone.replace(/\D/g, ''));
+    const c = todosClientes.find(cl => cl.telefone?.replace(/\D/g,'') === ag.tutor_telefone.replace(/\D/g,''));
     if (c) c.bloqueado = true;
   }
   closeModal('modalBloquear');
@@ -2330,7 +2336,10 @@ async function atualizarHorariosEdicao() {
 function onPorteEdicaoChange(porte) {
   const pelagemGroup = document.getElementById('editAg-pelagemGroup');
   pelagemGroup.style.display = porte ? 'flex' : 'none';
+
+  // Reconstrói select de serviços filtrando trimming por porte
   renderSelectsServicos(null, porte);
+
   if (agEmEdicao) {
     agEmEdicao._porteNovo = porte;
     const servicoId = document.getElementById('editAg-servico').value;
@@ -2614,6 +2623,7 @@ function onPorteChange(porte) {
   const pelagemGroup = document.getElementById('petPelagemGroup');
   const avisoEl = document.getElementById('petGGAviso');
 
+  // Mostra pelagem para todos os portes
   pelagemGroup.style.display = porte ? 'flex' : 'none';
 
   if (porte === 'GG') {
@@ -2623,48 +2633,70 @@ function onPorteChange(porte) {
     avisoEl.style.display = 'none';
   }
 
+  // Reconstrói select de serviços filtrando trimming por porte
   renderSelectsServicos(porte, null);
+
   atualizarHorarios();
 }
 
 let searchTimeout;
-function searchExistingClient(val) {
-  clearTimeout(searchTimeout);
+async function buscarClienteEncaixe() {
+  const val = document.getElementById('searchClient').value.trim();
   const el = document.getElementById('searchResults');
-  if (val.length < 2) { el.innerHTML = ''; return; }
-  searchTimeout = setTimeout(async () => {
-    // Tenta n8n primeiro, usa dados locais como fallback
-    let data = null;
-    try {
-      const res = await fetch(`${N8N_LEITURA}/buscar-cliente?tenant_id=${TENANT_ID}&q=${encodeURIComponent(val)}`, { signal: undefined });
-      if (res.ok) data = await res.json();
-    } catch {}
+  if (val.length < 2) { el.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--muted);">Digite ao menos 2 caracteres</div>'; return; }
 
-    // Fallback: filtra nos dados locais
-    if (!data) {
-      const q = val.toLowerCase().replace(/\D/g, '') || val.toLowerCase();
-      data = todosClientes.filter(c => {
-        const telLimpo = c.telefone.replace(/\D/g, '');
-        return c.nome.toLowerCase().includes(val.toLowerCase()) ||
-               telLimpo.includes(q) ||
-               c.pets?.some(p => (typeof p === 'string' ? p : p.nome).toLowerCase().includes(val.toLowerCase()));
-      });
-    }
+  el.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--muted);">Buscando...</div>';
 
-    if (!data?.length) {
-      el.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--muted);">Nenhum cliente encontrado</div>';
-      return;
+  // Garante clientes carregados
+  if (!todosClientes.length) await loadClientes();
+
+  let data = null;
+
+  // Tenta n8n
+  try {
+    const res = await fetch(`${N8N_LEITURA}/buscar-cliente?tenant_id=${TENANT_ID}&q=${encodeURIComponent(val)}`);
+    if (res.ok) {
+      const text = await res.text();
+      let raw;
+      try { raw = JSON.parse(text); } catch { raw = []; }
+      const filtrado = (Array.isArray(raw) ? raw : []).filter(c => !c._empty && c.nome);
+      if (filtrado.length) data = filtrado;
     }
-    renderSearchResults(data);
-  }, 300);
+  } catch {}
+
+  // Fallback local
+  if (!data || !data.length) {
+    const q = val.toLowerCase();
+    const qNum = val.replace(/\D/g, '');
+    data = todosClientes.filter(c => {
+      if (!c.nome) return false;
+      const telLimpo = (c.telefone || '').replace(/\D/g, '');
+      return c.nome.toLowerCase().includes(q) ||
+             (qNum && telLimpo.includes(qNum)) ||
+             c.pets?.some(p => (typeof p === 'string' ? p : p.nome)?.toLowerCase().includes(q));
+    });
+  }
+
+  if (!data?.length) {
+    el.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--muted);">Nenhum cliente encontrado</div>';
+    return;
+  }
+  renderSearchResults(data);
 }
+
+// mantida para compatibilidade com qualquer chamada antiga
+function searchExistingClient(val) {}
+
+// Cache dos resultados da busca para selectCliente por índice
+let _searchResultsCache = [];
 
 function renderSearchResults(data) {
   const el = document.getElementById('searchResults');
   if (!data?.length) { el.innerHTML = ''; return; }
-  el.innerHTML = data.map(c => {
-    const petNomes = c.pets?.map(p => typeof p === 'string' ? p : p.nome).join(', ') || 'nenhum';
-    return `<div class="search-result" onclick="selectCliente(${JSON.stringify(c).replace(/"/g, '&quot;')})">
+  _searchResultsCache = data;
+  el.innerHTML = data.map((c, i) => {
+    const petNomes = c.pets?.map(p => typeof p === 'string' ? p : p.nome).filter(Boolean).join(', ') || 'nenhum';
+    return `<div class="search-result" onclick="selectCliente(_searchResultsCache[${i}])">
       <div class="search-result-name">👤 ${c.nome}</div>
       <div class="search-result-sub">${c.telefone} • Pets: ${petNomes}</div>
     </div>`;
@@ -2677,6 +2709,7 @@ function selectCliente(c) {
   document.getElementById('tutorTel').value = c.telefone;
   document.getElementById('searchClient').value = c.nome;
   document.getElementById('searchResults').innerHTML = '';
+  verificarBloqueioTel(c.telefone);
   // Esconde campos de pet até selecionar pet novo ou existente
   document.getElementById('petRacaGroup').style.display = 'none';
   document.getElementById('petSexoGroup').style.display = 'none';
@@ -2709,11 +2742,13 @@ function renderPetSelector(c) {
   // Remove old pet selector if exists
   const old = document.getElementById('petSelectorWrap');
   if (old) old.remove();
-  
+
   const wrap = document.createElement('div');
   wrap.id = 'petSelectorWrap';
   wrap.innerHTML = html;
-  document.getElementById('petNome').closest('.form-group').before(wrap);
+  // Insere ANTES do encaixeForm (fora do grid) para renderizar corretamente
+  const encaixeForm = document.getElementById('encaixeForm');
+  encaixeForm.before(wrap);
   document.getElementById('petNome').closest('.form-group').style.display = 'none';
 }
 
@@ -2746,11 +2781,11 @@ function selectNovoPet(el) {
 }
 
 function verificarBloqueioTel(tel) {
-  const telLimpo = String(tel || '').replace(/\D/g, '');
+  const telLimpo = tel.replace(/\D/g, '');
   const aviso = document.getElementById('avisoBloqueio');
   if (!aviso) return;
-  const clienteBloqueado = todosClientes.find(c => String(c.telefone || '').replace(/\D/g,'') === telLimpo && c.bloqueado);
-  const bloqueado = clientesBloqueados.has(String(tel)) || clientesBloqueados.has(telLimpo) || !!clienteBloqueado;
+  const clienteBloqueado = todosClientes.find(c => c.telefone?.replace(/\D/g,'') === telLimpo && c.bloqueado);
+  const bloqueado = clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpo) || !!clienteBloqueado;
   aviso.style.display = bloqueado ? 'block' : 'none';
 }
 
@@ -2764,9 +2799,10 @@ async function salvarEncaixe() {
   const horario = document.getElementById('horarioSelect').value;
 
   const faltando = [];
-  const telLimpoEnc = String(tel || '').replace(/\D/g, '');
-  const clienteBloqEnc = todosClientes.find(c => String(c.telefone || '').replace(/\D/g,'') === telLimpoEnc && c.bloqueado);
-  if (clientesBloqueados.has(String(tel)) || clientesBloqueados.has(telLimpoEnc) || clienteBloqEnc) {
+  // Bloqueia se cliente estiver na lista de bloqueados
+  const telLimpoEnc = tel.replace(/\D/g, '');
+  const clienteBloqEnc = todosClientes.find(c => c.telefone?.replace(/\D/g,'') === telLimpoEnc && c.bloqueado);
+  if (clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpoEnc) || clienteBloqEnc) {
     showToast('🚫 Cliente bloqueado — não é possível agendar', 'error');
     return;
   }
@@ -2996,10 +3032,12 @@ async function loadClientes(q = '') {
     const res = await fetch(`${N8N_LEITURA}/clientes?tenant_id=${TENANT_ID}&q=${encodeURIComponent(q)}`);
     if (res.ok) {
       const doServidor = (await res.json()).filter(c => !c._empty);
+      // Preserva clientes criados localmente que ainda nao estao no banco
       const idsServidor = new Set(doServidor.map(c => c.id));
       const apenasLocais = todosClientes.filter(c => c._local && !idsServidor.has(c.id));
       todosClientes = [...doServidor, ...apenasLocais];
     }
+    // se falhar, mantem o que ja tem
   } catch {}
   renderClientes(todosClientes);
 }
@@ -3306,6 +3344,7 @@ async function salvarNovoCliente() {
   const nome = document.getElementById('novo-cliente-nome').value.trim();
   const tel  = document.getElementById('novo-cliente-tel').value.trim();
   if (!nome || !tel) { showToast('Nome e WhatsApp são obrigatórios', 'error'); return; }
+
   let id = crypto.randomUUID();
   try {
     await fetch(`${N8N_CADASTRO}/novo-cliente`, {
@@ -3314,6 +3353,7 @@ async function salvarNovoCliente() {
       body: JSON.stringify({ tenant_id: TENANT_ID, nome, telefone: tel })
     });
   } catch {}
+
   const novoCliente = { id, nome, telefone: tel, pets: [], _local: true };
   todosClientes.unshift(novoCliente);
   renderClientes(todosClientes);
@@ -3776,7 +3816,7 @@ updateDateDisplay();
 todosClientes = [];
 todosAgendamentos = [];
 loadConfig().then(() => loadAgenda());
-loadClientes();
+loadClientes(); // carrega silenciosamente no init para o fallback do encaixe funcionar
 </script>
 </body>
 </html>
