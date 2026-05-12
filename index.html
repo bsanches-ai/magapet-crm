@@ -2687,12 +2687,16 @@ async function buscarClienteEncaixe() {
 // mantida para compatibilidade com qualquer chamada antiga
 function searchExistingClient(val) {}
 
+// Cache dos resultados da busca para selectCliente por índice
+let _searchResultsCache = [];
+
 function renderSearchResults(data) {
   const el = document.getElementById('searchResults');
   if (!data?.length) { el.innerHTML = ''; return; }
-  el.innerHTML = data.map(c => {
-    const petNomes = c.pets?.map(p => typeof p === 'string' ? p : p.nome).join(', ') || 'nenhum';
-    return `<div class="search-result" onclick="selectCliente(${JSON.stringify(c).replace(/"/g, '&quot;')})">
+  _searchResultsCache = data;
+  el.innerHTML = data.map((c, i) => {
+    const petNomes = c.pets?.map(p => typeof p === 'string' ? p : p.nome).filter(Boolean).join(', ') || 'nenhum';
+    return `<div class="search-result" onclick="selectCliente(_searchResultsCache[${i}])">
       <div class="search-result-name">👤 ${c.nome}</div>
       <div class="search-result-sub">${c.telefone} • Pets: ${petNomes}</div>
     </div>`;
