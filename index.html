@@ -3124,6 +3124,14 @@ function abrirFicha(cliente) {
       ${cliente.saldo_pacote ? `<div style="background:rgba(76,175,125,0.1);border:1px solid rgba(76,175,125,0.2);border-radius:10px;padding:10px 16px;font-size:13px;color:var(--green);flex:1;">🎟️ Pacote ativo: ${cliente.saldo_pacote} banhos disponíveis</div>` : ''}
       <button class="btn btn-adicional" onclick="abrirAdicionarPacote('${cliente.id}', '${cliente.nome}')">🎟️ + Pacote</button>
     </div>
+    ${(cliente.email || cliente.endereco || cliente.telefone_secundario || cliente.como_conheceu) ? `
+    <div class="chart-card" style="max-width:600px;margin-bottom:20px;">
+      <div class="expanded-title" style="margin-bottom:10px;">📋 Informações do tutor</div>
+      ${cliente.email ? infoRow('E-mail', cliente.email) : ''}
+      ${cliente.telefone_secundario ? infoRow('WhatsApp secundário', cliente.telefone_secundario) : ''}
+      ${cliente.endereco ? infoRow('Endereço', cliente.endereco) : ''}
+      ${cliente.como_conheceu ? infoRow('Como conheceu', cliente.como_conheceu) : ''}
+    </div>` : ''}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <div class="expanded-title" style="margin:0;">Pets</div>
       <button class="btn btn-adicional" onclick="abrirNovoPet('${cliente.id}', '${cliente.nome}')">+ Novo pet</button>
@@ -3158,12 +3166,21 @@ function infoRow(label, valor) {
 }
 
 function abrirFichaPet(pet, tutorNome) {
-  const historico = pet.historico?.length
-    ? pet.historico.map(h => `
-        <div class="history-item">
-          <span>${h.servico}</span>
-          <span class="history-date">${h.data}</span>
-        </div>`).join('')
+  // Monta histórico a partir dos agendamentos entregues do pet (vem do Supabase)
+  const ags = (pet.agendamentos || [])
+    .filter(a => a.status === 'entregue')
+    .sort((a, b) => b.data_hora.localeCompare(a.data_hora));
+
+  const historico = ags.length
+    ? ags.map(a => {
+        const data = new Date(new Date(a.data_hora).getTime() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const servico = a.tenant_servicos?.nome || '—';
+        const valor = a.valor_total ? formatMoney(a.valor_total) : '';
+        return `<div class="history-item">
+          <span>${servico}</span>
+          <span class="history-date">${data}${valor ? ' · ' + valor : ''}</span>
+        </div>`;
+      }).join('')
     : '<div style="font-size:13px;color:var(--muted);padding:8px 0;">Nenhum atendimento registrado</div>';
 
   document.getElementById('fichaContent').innerHTML = `
