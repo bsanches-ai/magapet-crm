@@ -3278,10 +3278,10 @@ async function atualizarValorPremium(id, valor) {
   if (!ag) return;
   ag.valor = parseFloat(valor) || 0;
   try {
-    await fetch(`${N8N_ATENDIMENTO}/desconto`, {
+    await fetch(`${N8N_ATENDIMENTO}/valor-gg`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: id, valor_total: ag.valor })
+      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: id, valor: ag.valor })
     });
   } catch {}
 }
