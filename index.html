@@ -1427,6 +1427,7 @@ let activeFilters = new Set(['todos']);
 let agendamentos = [];
 let todosAgendamentos = [];
 let currentCardId = null;
+let _searchResultsCache = [];
 let currentPetId = null;
 let selectedAdicional = null;
 let clienteAtual = null;
@@ -2687,9 +2688,6 @@ async function buscarClienteEncaixe() {
 // mantida para compatibilidade com qualquer chamada antiga
 function searchExistingClient(val) {}
 
-// Cache dos resultados da busca para selectCliente por índice
-let _searchResultsCache = [];
-
 function renderSearchResults(data) {
   const el = document.getElementById('searchResults');
   if (!data?.length) { el.innerHTML = ''; return; }
@@ -2698,12 +2696,14 @@ function renderSearchResults(data) {
     const petNomes = c.pets?.map(p => typeof p === 'string' ? p : p.nome).filter(Boolean).join(', ') || 'nenhum';
     return `<div class="search-result" onclick="selectCliente(_searchResultsCache[${i}])">
       <div class="search-result-name">👤 ${c.nome}</div>
-      <div class="search-result-sub">${c.telefone} • Pets: ${petNomes}</div>
+      <div class="search-result-sub">${String(c.telefone || '')} • Pets: ${petNomes}</div>
     </div>`;
   }).join('');
 }
 
 function selectCliente(c) {
+  if (!c) return;
+  c.telefone = String(c.telefone || '');
   clienteAtual = c;
   document.getElementById('tutorNome').value = c.nome;
   document.getElementById('tutorTel').value = c.telefone;
@@ -2767,15 +2767,11 @@ function selectPet(id, nome, el) {
   document.getElementById('petPorteGroup').style.display = 'none';
   document.getElementById('petPelagemGroup').style.display = 'none';
   document.getElementById('petGGAviso').style.display = 'none';
-  // Atualiza select de serviços com base no porte do pet (ex: mostra Trimming para GG)
+  // Atualiza serviços disponíveis conforme porte do pet (ex: Trimming só para GG)
   renderSelectsServicos(porte, null);
-  // Mostra aviso GG se aplicável
-  if (porte === 'GG') {
+  if (porte === 'GG' || porte === 'Premium') {
     const avisoEl = document.getElementById('petGGAviso');
-    if (avisoEl) {
-      avisoEl.style.display = 'block';
-      avisoEl.textContent = TEXTO_GG || 'Raça GG — avaliação presencial necessária para precificação.';
-    }
+    if (avisoEl) { avisoEl.style.display = 'block'; avisoEl.textContent = TEXTO_GG || 'Raça especial — avaliação presencial necessária para precificação.'; }
   }
   atualizarHorarios();
 }
@@ -2793,11 +2789,12 @@ function selectNovoPet(el) {
 }
 
 function verificarBloqueioTel(tel) {
-  const telLimpo = tel.replace(/\D/g, '');
+  const telStr = String(tel || '');
+  const telLimpo = telStr.replace(/\D/g, '');
   const aviso = document.getElementById('avisoBloqueio');
   if (!aviso) return;
-  const clienteBloqueado = todosClientes.find(c => c.telefone?.replace(/\D/g,'') === telLimpo && c.bloqueado);
-  const bloqueado = clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpo) || !!clienteBloqueado;
+  const clienteBloqueado = todosClientes.find(c => String(c.telefone || '').replace(/\D/g,'') === telLimpo && c.bloqueado);
+  const bloqueado = clientesBloqueados.has(telStr) || clientesBloqueados.has(telLimpo) || !!clienteBloqueado;
   aviso.style.display = bloqueado ? 'block' : 'none';
 }
 
