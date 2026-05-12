@@ -2704,7 +2704,11 @@ function renderSearchResults(data) {
 }
 
 function selectCliente(c) {
+  if (!c) { showToast('Erro ao selecionar cliente', 'error'); return; }
   clienteAtual = c;
+  // Garante telefone como string
+  c.telefone = String(c.telefone || '');
+
   document.getElementById('searchClient').value = c.nome;
   document.getElementById('searchResults').innerHTML = '';
   verificarBloqueioTel(c.telefone);
@@ -2877,7 +2881,7 @@ function selectNovoPet(el) {
 }
 
 function verificarBloqueioTel(tel) {
-  const telLimpo = tel.replace(/\D/g, '');
+  const telLimpo = String(tel || '').replace(/\D/g, '');
   const aviso = document.getElementById('avisoBloqueio');
   if (!aviso) return;
   const clienteBloqueado = todosClientes.find(c => c.telefone?.replace(/\D/g,'') === telLimpo && c.bloqueado);
