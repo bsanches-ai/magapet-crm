@@ -2742,11 +2742,13 @@ function renderPetSelector(c) {
   // Remove old pet selector if exists
   const old = document.getElementById('petSelectorWrap');
   if (old) old.remove();
-  
+
   const wrap = document.createElement('div');
   wrap.id = 'petSelectorWrap';
   wrap.innerHTML = html;
-  document.getElementById('petNome').closest('.form-group').before(wrap);
+  // Insere ANTES do encaixeForm (fora do grid) para renderizar corretamente
+  const encaixeForm = document.getElementById('encaixeForm');
+  encaixeForm.before(wrap);
   document.getElementById('petNome').closest('.form-group').style.display = 'none';
 }
 
