@@ -2543,11 +2543,13 @@ async function marcarPronto(id) {
 async function marcarEntregue(id) {
   const ag = agendamentos.find(a => a.id === id);
   if (!ag) return;
+  // Calcula valor total: serviço + adicionais - desconto
+  const valorTotal = Math.max(0, (ag.valor || 0) + (ag.adicionais_valor || 0) - (ag.desconto || 0));
   try {
     await fetch(`${N8N_ATENDIMENTO}/entregue`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: id, pet_nome: ag.pet_nome, pet_sexo: ag.pet_sexo, tutor_telefone: ag.tutor_telefone, saldo_pacote: ag.saldo_pacote, google_link: GOOGLE_LINK_CONFIG, instagram: INSTAGRAM_CONFIG })
+      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: id, pet_nome: ag.pet_nome, pet_sexo: ag.pet_sexo, tutor_telefone: ag.tutor_telefone, saldo_pacote: ag.saldo_pacote, google_link: GOOGLE_LINK_CONFIG, instagram: INSTAGRAM_CONFIG, valor_total: valorTotal })
     });
   } catch {}
   ag.status = 'entregue';
