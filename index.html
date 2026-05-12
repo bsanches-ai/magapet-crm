@@ -1431,7 +1431,7 @@ let currentPetId = null;
 let selectedAdicional = null;
 let clienteAtual = null;
 
-let clientesBloqueados = new Set(); // telefones bloqueados (sem formatação e com)
+let clientesBloqueados = new Set();
 
 // Config do tenant (carregada do banco)
 let CAPACIDADE_DIA = {
@@ -1627,13 +1627,11 @@ function renderSelectsServicos(porteEncaixe, porteEdicao) {
   function buildOptions(lista, porte) {
     return lista.map(s => {
       const tipo = s.categoria === 'tosa' ? 'tosa' : 'banho';
-      // Trimming só aparece para porte GG
       if (s.nome && s.nome.toLowerCase().includes('trimming') && porte !== 'GG') return '';
       return `<option value="${s.id}" data-nome="${s.nome}" data-tipo="${tipo}" data-gg="${s.preco_gg_livre}">${s.nome}</option>`;
     }).join('');
   }
 
-  // Select encaixe
   const encaixeEl = document.getElementById('servicoSelect');
   if (encaixeEl) {
     const pEnc = porteEncaixe || document.getElementById('petPorte')?.value || '';
@@ -1642,11 +1640,9 @@ function renderSelectsServicos(porteEncaixe, porteEdicao) {
       <option value="">Selecione...</option>
       <optgroup label="Banho">${buildOptions(banho, pEnc)}</optgroup>
       <optgroup label="Banho + Tosa">${buildOptions(tosa, pEnc)}</optgroup>`;
-    // Mantém seleção se ainda válida; senão limpa
     if (curVal && encaixeEl.querySelector(`option[value="${curVal}"]`)) encaixeEl.value = curVal;
   }
 
-  // Select editar agendamento
   const editEl = document.getElementById('editAg-servico');
   if (editEl) {
     const pEdit = porteEdicao || document.getElementById('editAg-porte')?.value || '';
@@ -2035,9 +2031,10 @@ async function confirmarBloqueio() {
     });
   } catch {}
   if (ag?.tutor_telefone) {
-    clientesBloqueados.add(ag.tutor_telefone);
-    clientesBloqueados.add(ag.tutor_telefone.replace(/\D/g, ''));
-    const c = todosClientes.find(cl => cl.telefone?.replace(/\D/g,'') === ag.tutor_telefone.replace(/\D/g,''));
+    const tel = String(ag.tutor_telefone);
+    clientesBloqueados.add(tel);
+    clientesBloqueados.add(tel.replace(/\D/g, ''));
+    const c = todosClientes.find(cl => String(cl.telefone).replace(/\D/g,'') === tel.replace(/\D/g,''));
     if (c) c.bloqueado = true;
   }
   closeModal('modalBloquear');
@@ -2336,10 +2333,7 @@ async function atualizarHorariosEdicao() {
 function onPorteEdicaoChange(porte) {
   const pelagemGroup = document.getElementById('editAg-pelagemGroup');
   pelagemGroup.style.display = porte ? 'flex' : 'none';
-
-  // Reconstrói select de serviços filtrando trimming por porte
   renderSelectsServicos(null, porte);
-
   if (agEmEdicao) {
     agEmEdicao._porteNovo = porte;
     const servicoId = document.getElementById('editAg-servico').value;
@@ -2623,7 +2617,6 @@ function onPorteChange(porte) {
   const pelagemGroup = document.getElementById('petPelagemGroup');
   const avisoEl = document.getElementById('petGGAviso');
 
-  // Mostra pelagem para todos os portes
   pelagemGroup.style.display = porte ? 'flex' : 'none';
 
   if (porte === 'GG') {
@@ -2633,50 +2626,41 @@ function onPorteChange(porte) {
     avisoEl.style.display = 'none';
   }
 
-  // Reconstrói select de serviços filtrando trimming por porte
   renderSelectsServicos(porte, null);
-
   atualizarHorarios();
 }
 
 let searchTimeout;
+// Cache para evitar JSON inline no onclick
+let _searchResultsCache = [];
+
 async function buscarClienteEncaixe() {
   const val = document.getElementById('searchClient').value.trim();
   const el = document.getElementById('searchResults');
   if (val.length < 2) { el.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--muted);">Digite ao menos 2 caracteres</div>'; return; }
-
   el.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--muted);">Buscando...</div>';
-
-  // Garante clientes carregados
   if (!todosClientes.length) await loadClientes();
-
   let data = null;
-
-  // Tenta n8n
   try {
     const res = await fetch(`${N8N_LEITURA}/buscar-cliente?tenant_id=${TENANT_ID}&q=${encodeURIComponent(val)}`);
     if (res.ok) {
       const text = await res.text();
-      let raw;
-      try { raw = JSON.parse(text); } catch { raw = []; }
+      let raw; try { raw = JSON.parse(text); } catch { raw = []; }
       const filtrado = (Array.isArray(raw) ? raw : []).filter(c => !c._empty && c.nome);
       if (filtrado.length) data = filtrado;
     }
   } catch {}
-
-  // Fallback local
   if (!data || !data.length) {
     const q = val.toLowerCase();
     const qNum = val.replace(/\D/g, '');
     data = todosClientes.filter(c => {
       if (!c.nome) return false;
-      const telLimpo = (c.telefone || '').replace(/\D/g, '');
+      const telLimpo = String(c.telefone || '').replace(/\D/g, '');
       return c.nome.toLowerCase().includes(q) ||
              (qNum && telLimpo.includes(qNum)) ||
              c.pets?.some(p => (typeof p === 'string' ? p : p.nome)?.toLowerCase().includes(q));
     });
   }
-
   if (!data?.length) {
     el.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--muted);">Nenhum cliente encontrado</div>';
     return;
@@ -2684,11 +2668,7 @@ async function buscarClienteEncaixe() {
   renderSearchResults(data);
 }
 
-// mantida para compatibilidade com qualquer chamada antiga
 function searchExistingClient(val) {}
-
-// Cache dos resultados da busca para selectCliente por índice
-let _searchResultsCache = [];
 
 function renderSearchResults(data) {
   const el = document.getElementById('searchResults');
@@ -2698,82 +2678,26 @@ function renderSearchResults(data) {
     const petNomes = c.pets?.map(p => typeof p === 'string' ? p : p.nome).filter(Boolean).join(', ') || 'nenhum';
     return `<div class="search-result" onclick="selectCliente(_searchResultsCache[${i}])">
       <div class="search-result-name">👤 ${c.nome}</div>
-      <div class="search-result-sub">${c.telefone} • Pets: ${petNomes}</div>
+      <div class="search-result-sub">${String(c.telefone || '')} • Pets: ${petNomes}</div>
     </div>`;
   }).join('');
 }
 
 function selectCliente(c) {
-  if (!c) { showToast('Erro ao selecionar cliente', 'error'); return; }
   clienteAtual = c;
-  // Garante telefone como string
-  c.telefone = String(c.telefone || '');
-
+  document.getElementById('tutorNome').value = c.nome;
+  document.getElementById('tutorTel').value = c.telefone;
   document.getElementById('searchClient').value = c.nome;
   document.getElementById('searchResults').innerHTML = '';
-  verificarBloqueioTel(c.telefone);
-
-  // Esconde o form completo de cadastro novo e o divider
-  document.getElementById('encaixeForm').style.display = 'none';
-  const divider = document.querySelector('.section-divider');
-  if (divider) divider.style.display = 'none';
-
-  // Mostra painel do cliente selecionado com pets
-  renderClienteSelecionado(c);
+  verificarBloqueioTel(String(c.telefone || ''));
+  // Esconde campos de pet até selecionar pet novo ou existente
+  document.getElementById('petRacaGroup').style.display = 'none';
+  document.getElementById('petSexoGroup').style.display = 'none';
+  document.getElementById('petPorteGroup').style.display = 'none';
+  document.getElementById('petPelagemGroup').style.display = 'none';
+  document.getElementById('petGGAviso').style.display = 'none';
+  renderPetSelector(c);
   showToast(`Cliente ${c.nome} selecionado`, 'success');
-}
-
-function renderClienteSelecionado(c) {
-  // Remove painel anterior se existir
-  const old = document.getElementById('clienteSelecionadoWrap');
-  if (old) old.remove();
-
-  const wrap = document.createElement('div');
-  wrap.id = 'clienteSelecionadoWrap';
-
-  const pets = c.pets || [];
-  const petsHtml = pets.map(p => {
-    const pet = typeof p === 'object' ? p : { id: p, nome: p };
-    return `<div class="search-result" onclick="selectPet('${pet.id}', '${pet.nome}', this)" style="padding:10px 14px;">
-      <div style="font-size:13px;color:var(--cream);">🐶 ${pet.nome}</div>
-      ${pet.raca ? `<div style="font-size:11px;color:var(--muted);">${pet.raca}${pet.porte ? ' · ' + pet.porte : ''}</div>` : ''}
-    </div>`;
-  }).join('');
-
-  wrap.innerHTML = `
-    <div style="background:#f5f7fc;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div>
-          <div style="font-size:14px;font-weight:600;color:var(--text);">👤 ${c.nome}</div>
-          <div style="font-size:12px;color:var(--muted);">${c.telefone}</div>
-        </div>
-        <button onclick="limparClienteSelecionado()" style="background:none;border:none;font-size:12px;color:var(--muted);cursor:pointer;padding:4px 8px;border-radius:6px;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--muted)'">✕ trocar</button>
-      </div>
-      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Selecione o pet</div>
-      <div style="display:flex;flex-direction:column;gap:6px;" id="petSelectorList">
-        ${petsHtml}
-        <div class="search-result" onclick="selectNovoPet(this)" style="padding:10px 14px;border-style:dashed;">
-          <div style="font-size:13px;color:var(--gold);">+ Novo pet</div>
-        </div>
-      </div>
-    </div>
-    <div id="novoPetFormWrap" style="display:none;"></div>`;
-
-  // Insere antes do encaixeForm
-  document.getElementById('encaixeForm').before(wrap);
-}
-
-function limparClienteSelecionado() {
-  clienteAtual = null;
-  const wrap = document.getElementById('clienteSelecionadoWrap');
-  if (wrap) wrap.remove();
-  document.getElementById('encaixeForm').style.display = 'grid';
-  const divider = document.querySelector('.section-divider');
-  if (divider) divider.style.display = 'flex';
-  document.getElementById('searchClient').value = '';
-  document.getElementById('tutorNome').value = '';
-  document.getElementById('tutorTel').value = '';
-  document.getElementById('avisoBloqueio').style.display = 'none';
 }
 
 function renderPetSelector(c) {
@@ -2798,13 +2722,11 @@ function renderPetSelector(c) {
   // Remove old pet selector if exists
   const old = document.getElementById('petSelectorWrap');
   if (old) old.remove();
-
+  
   const wrap = document.createElement('div');
   wrap.id = 'petSelectorWrap';
   wrap.innerHTML = html;
-  // Insere ANTES do encaixeForm (fora do grid) para renderizar corretamente
-  const encaixeForm = document.getElementById('encaixeForm');
-  encaixeForm.before(wrap);
+  document.getElementById('petNome').closest('.form-group').before(wrap);
   document.getElementById('petNome').closest('.form-group').style.display = 'none';
 }
 
@@ -2828,55 +2750,11 @@ function selectNovoPet(el) {
   document.querySelectorAll('#petSelectorList .search-result').forEach(e => e.style.borderColor = 'var(--border)');
   el.style.borderColor = 'var(--gold)';
   clienteAtual.petSelecionado = null;
-
-  // Se estiver no painel de cliente selecionado, mostra mini-form de novo pet
-  const novoPetWrap = document.getElementById('novoPetFormWrap');
-  if (novoPetWrap) {
-    novoPetWrap.style.display = 'block';
-    novoPetWrap.innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;">
-        <div class="form-group">
-          <label class="form-label">Nome do pet *</label>
-          <input class="form-input" type="text" id="petNome" placeholder="Nome do pet">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Raça</label>
-          <input class="form-input" type="text" id="petRaca" placeholder="Ex: Golden Retriever" oninput="sugerirPortePorRaca(this.value)">
-        </div>
-        <div class="form-group" id="petSexoGroup">
-          <label class="form-label">Sexo</label>
-          <select class="form-select" id="petSexo"><option value="M">Macho</option><option value="F">Fêmea</option></select>
-        </div>
-        <div class="form-group" id="petPorteGroup">
-          <label class="form-label">Porte *</label>
-          <select class="form-select" id="petPorte" onchange="onPorteChange(this.value)">
-            <option value="">Selecione...</option>
-            <option value="PP">PP — Pincher, Chihuahua, Yorkie</option>
-            <option value="P">P — Pequeno</option>
-            <option value="M">M — Médio</option>
-            <option value="G">G — Grande</option>
-            <option value="GG">GG — Raças especiais</option>
-          </select>
-        </div>
-        <div class="form-group" id="petPelagemGroup" style="display:none;">
-          <label class="form-label">Pelagem</label>
-          <select class="form-select" id="petPelagem" onchange="atualizarHorarios()">
-            <option value="curto">Pelo curto</option>
-            <option value="longo">Pelo longo</option>
-          </select>
-        </div>
-        <div id="petGGAviso" style="display:none;grid-column:1/-1;background:rgba(217,95,82,0.08);border:1px solid rgba(217,95,82,0.2);border-radius:10px;padding:12px 14px;font-size:12px;color:#2a3a5c;"></div>
-      </div>`;
-    document.getElementById('petNome').focus();
-    return;
-  }
-
-  // Fallback: mostra campos no form original
   document.getElementById('petNome').closest('.form-group').style.display = 'flex';
   document.getElementById('petRacaGroup').style.display = 'flex';
   document.getElementById('petSexoGroup').style.display = 'flex';
   document.getElementById('petPorteGroup').style.display = 'flex';
-  document.getElementById('petPelagemGroup').style.display = 'none';
+  document.getElementById('petPelagemGroup').style.display = 'none'; // mostra ao selecionar porte
   document.getElementById('petNome').focus();
 }
 
@@ -2884,15 +2762,14 @@ function verificarBloqueioTel(tel) {
   const telLimpo = String(tel || '').replace(/\D/g, '');
   const aviso = document.getElementById('avisoBloqueio');
   if (!aviso) return;
-  const clienteBloqueado = todosClientes.find(c => c.telefone?.replace(/\D/g,'') === telLimpo && c.bloqueado);
-  const bloqueado = clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpo) || !!clienteBloqueado;
+  const clienteBloqueado = todosClientes.find(c => String(c.telefone || '').replace(/\D/g,'') === telLimpo && c.bloqueado);
+  const bloqueado = clientesBloqueados.has(String(tel)) || clientesBloqueados.has(telLimpo) || !!clienteBloqueado;
   aviso.style.display = bloqueado ? 'block' : 'none';
 }
 
 async function salvarEncaixe() {
-  // Se cliente selecionado pelo painel, pega do objeto; senão pega dos campos
-  const nome = clienteAtual?.nome || document.getElementById('tutorNome').value.trim();
-  const tel = clienteAtual?.telefone || document.getElementById('tutorTel').value.trim();
+  const nome = document.getElementById('tutorNome').value.trim();
+  const tel = document.getElementById('tutorTel').value.trim();
   const petSelecionado = clienteAtual?.petSelecionado;
   const petNome = petSelecionado?.nome || document.getElementById('petNome').value.trim();
   const servico = document.getElementById('servicoSelect').value;
@@ -2900,10 +2777,9 @@ async function salvarEncaixe() {
   const horario = document.getElementById('horarioSelect').value;
 
   const faltando = [];
-  // Bloqueia se cliente estiver na lista de bloqueados
-  const telLimpoEnc = tel.replace(/\D/g, '');
-  const clienteBloqEnc = todosClientes.find(c => c.telefone?.replace(/\D/g,'') === telLimpoEnc && c.bloqueado);
-  if (clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpoEnc) || clienteBloqEnc) {
+  const telLimpoEnc = String(tel || '').replace(/\D/g, '');
+  const clienteBloqEnc = todosClientes.find(c => String(c.telefone || '').replace(/\D/g,'') === telLimpoEnc && c.bloqueado);
+  if (clientesBloqueados.has(String(tel)) || clientesBloqueados.has(telLimpoEnc) || clienteBloqEnc) {
     showToast('🚫 Cliente bloqueado — não é possível agendar', 'error');
     return;
   }
@@ -3005,11 +2881,6 @@ async function salvarEncaixe() {
   document.getElementById('petNome').closest('.form-group').style.display = 'flex';
   const wrap = document.getElementById('petSelectorWrap');
   if (wrap) wrap.remove();
-  const cliWrap = document.getElementById('clienteSelecionadoWrap');
-  if (cliWrap) cliWrap.remove();
-  document.getElementById('encaixeForm').style.display = 'grid';
-  const divider = document.querySelector('.section-divider');
-  if (divider) divider.style.display = 'flex';
   clienteAtual = null;
 
   setTimeout(async () => {
@@ -3138,12 +3009,10 @@ async function loadClientes(q = '') {
     const res = await fetch(`${N8N_LEITURA}/clientes?tenant_id=${TENANT_ID}&q=${encodeURIComponent(q)}`);
     if (res.ok) {
       const doServidor = (await res.json()).filter(c => !c._empty);
-      // Preserva clientes criados localmente que ainda nao estao no banco
       const idsServidor = new Set(doServidor.map(c => c.id));
       const apenasLocais = todosClientes.filter(c => c._local && !idsServidor.has(c.id));
       todosClientes = [...doServidor, ...apenasLocais];
     }
-    // se falhar, mantem o que ja tem
   } catch {}
   renderClientes(todosClientes);
 }
@@ -3450,7 +3319,6 @@ async function salvarNovoCliente() {
   const nome = document.getElementById('novo-cliente-nome').value.trim();
   const tel  = document.getElementById('novo-cliente-tel').value.trim();
   if (!nome || !tel) { showToast('Nome e WhatsApp são obrigatórios', 'error'); return; }
-
   let id = crypto.randomUUID();
   try {
     await fetch(`${N8N_CADASTRO}/novo-cliente`, {
@@ -3459,7 +3327,6 @@ async function salvarNovoCliente() {
       body: JSON.stringify({ tenant_id: TENANT_ID, nome, telefone: tel })
     });
   } catch {}
-
   const novoCliente = { id, nome, telefone: tel, pets: [], _local: true };
   todosClientes.unshift(novoCliente);
   renderClientes(todosClientes);
@@ -3922,7 +3789,7 @@ updateDateDisplay();
 todosClientes = [];
 todosAgendamentos = [];
 loadConfig().then(() => loadAgenda());
-loadClientes(); // carrega silenciosamente no init para o fallback do encaixe funcionar
+loadClientes();
 </script>
 </body>
 </html>
