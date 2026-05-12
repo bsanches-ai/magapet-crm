@@ -2799,8 +2799,8 @@ function verificarBloqueioTel(tel) {
 }
 
 async function salvarEncaixe() {
-  const nome = document.getElementById('tutorNome').value.trim();
-  const tel = document.getElementById('tutorTel').value.trim();
+  const nome = clienteAtual?.nome || document.getElementById('tutorNome').value.trim();
+  const tel = String(clienteAtual?.telefone || document.getElementById('tutorTel').value || '').trim();
   const petSelecionado = clienteAtual?.petSelecionado;
   const petNome = petSelecionado?.nome || document.getElementById('petNome').value.trim();
   const servico = document.getElementById('servicoSelect').value;
