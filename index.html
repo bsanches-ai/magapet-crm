@@ -2642,18 +2642,23 @@ function searchExistingClient(val) {
   const el = document.getElementById('searchResults');
   if (val.length < 2) { el.innerHTML = ''; return; }
   searchTimeout = setTimeout(async () => {
+    // Garante que todosClientes está carregado antes de usar o fallback
+    if (!todosClientes.length) await loadClientes();
+
     let data = null;
     try {
       const res = await fetch(`${N8N_LEITURA}/buscar-cliente?tenant_id=${TENANT_ID}&q=${encodeURIComponent(val)}`, { signal: undefined });
       if (res.ok) {
-        const raw = await res.json();
-        // Filtra _empty e garante que tem resultados reais
+        // Respond Clientes retorna text/json — trata os dois casos
+        const text = await res.text();
+        let raw;
+        try { raw = JSON.parse(text); } catch { raw = []; }
         const filtrado = (Array.isArray(raw) ? raw : []).filter(c => !c._empty && c.nome);
         if (filtrado.length) data = filtrado;
       }
     } catch {}
 
-    // Fallback sempre: filtra nos dados locais se n8n falhou ou nao retornou nada
+    // Fallback: filtra todosClientes localmente
     if (!data || !data.length) {
       const q = val.toLowerCase();
       const qNum = val.replace(/\D/g, '');
