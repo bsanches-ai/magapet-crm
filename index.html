@@ -2755,10 +2755,11 @@ function renderPetSelector(c) {
 function selectPet(id, nome, el) {
   document.querySelectorAll('#petSelectorList .search-result').forEach(e => e.style.borderColor = 'var(--border)');
   el.style.borderColor = 'var(--gold)';
-  // Busca dados do pet no cliente atual
   const pets = clienteAtual?.pets || [];
   const petData = pets.find(p => (typeof p === 'object' ? p.id : p) === id);
-  clienteAtual.petSelecionado = { id, nome, porte: petData?.porte, pelagem: petData?.pelagem };
+  const porte = petData?.porte || '';
+  const pelagem = petData?.pelagem || '';
+  clienteAtual.petSelecionado = { id, nome, porte, pelagem };
   document.getElementById('petNome').value = nome;
   document.getElementById('petNome').closest('.form-group').style.display = 'none';
   document.getElementById('petRacaGroup').style.display = 'none';
@@ -2766,6 +2767,17 @@ function selectPet(id, nome, el) {
   document.getElementById('petPorteGroup').style.display = 'none';
   document.getElementById('petPelagemGroup').style.display = 'none';
   document.getElementById('petGGAviso').style.display = 'none';
+  // Atualiza select de serviços com base no porte do pet (ex: mostra Trimming para GG)
+  renderSelectsServicos(porte, null);
+  // Mostra aviso GG se aplicável
+  if (porte === 'GG') {
+    const avisoEl = document.getElementById('petGGAviso');
+    if (avisoEl) {
+      avisoEl.style.display = 'block';
+      avisoEl.textContent = TEXTO_GG || 'Raça GG — avaliação presencial necessária para precificação.';
+    }
+  }
+  atualizarHorarios();
 }
 
 function selectNovoPet(el) {
