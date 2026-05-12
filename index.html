@@ -2037,8 +2037,8 @@ async function confirmarBloqueio() {
   } catch {}
   if (ag?.tutor_telefone) {
     clientesBloqueados.add(ag.tutor_telefone);
-    clientesBloqueados.add(ag.tutor_telefone.replace(/\D/g, ''));
-    const c = todosClientes.find(cl => cl.telefone?.replace(/\D/g,'') === ag.tutor_telefone.replace(/\D/g,''));
+    clientesBloqueados.add(String(ag.tutor_telefone).replace(/\D/g, ''));
+    const c = todosClientes.find(cl => String(cl.telefone || '').replace(/\D/g,'') === String(ag.tutor_telefone).replace(/\D/g,''));
     if (c) c.bloqueado = true;
   }
   closeModal('modalBloquear');
@@ -2810,7 +2810,7 @@ async function salvarEncaixe() {
   const faltando = [];
   // Bloqueia se cliente estiver na lista de bloqueados
   const telLimpoEnc = tel.replace(/\D/g, '');
-  const clienteBloqEnc = todosClientes.find(c => c.telefone?.replace(/\D/g,'') === telLimpoEnc && c.bloqueado);
+  const clienteBloqEnc = todosClientes.find(c => String(c.telefone || '').replace(/\D/g,'') === telLimpoEnc && c.bloqueado);
   if (clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpoEnc) || clienteBloqEnc) {
     showToast('🚫 Cliente bloqueado — não é possível agendar', 'error');
     return;
