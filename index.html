@@ -2642,21 +2642,27 @@ function searchExistingClient(val) {
   const el = document.getElementById('searchResults');
   if (val.length < 2) { el.innerHTML = ''; return; }
   searchTimeout = setTimeout(async () => {
-    // Tenta n8n primeiro, usa dados locais como fallback
     let data = null;
     try {
       const res = await fetch(`${N8N_LEITURA}/buscar-cliente?tenant_id=${TENANT_ID}&q=${encodeURIComponent(val)}`, { signal: undefined });
-      if (res.ok) data = await res.json();
+      if (res.ok) {
+        const raw = await res.json();
+        // Filtra _empty e garante que tem resultados reais
+        const filtrado = (Array.isArray(raw) ? raw : []).filter(c => !c._empty && c.nome);
+        if (filtrado.length) data = filtrado;
+      }
     } catch {}
 
-    // Fallback: filtra nos dados locais
-    if (!data) {
-      const q = val.toLowerCase().replace(/\D/g, '') || val.toLowerCase();
+    // Fallback sempre: filtra nos dados locais se n8n falhou ou nao retornou nada
+    if (!data || !data.length) {
+      const q = val.toLowerCase();
+      const qNum = val.replace(/\D/g, '');
       data = todosClientes.filter(c => {
-        const telLimpo = c.telefone.replace(/\D/g, '');
-        return c.nome.toLowerCase().includes(val.toLowerCase()) ||
-               telLimpo.includes(q) ||
-               c.pets?.some(p => (typeof p === 'string' ? p : p.nome).toLowerCase().includes(val.toLowerCase()));
+        if (!c.nome) return false;
+        const telLimpo = (c.telefone || '').replace(/\D/g, '');
+        return c.nome.toLowerCase().includes(q) ||
+               (qNum && telLimpo.includes(qNum)) ||
+               c.pets?.some(p => (typeof p === 'string' ? p : p.nome)?.toLowerCase().includes(q));
       });
     }
 
@@ -3006,13 +3012,14 @@ async function loadClientes(q = '') {
   try {
     const res = await fetch(`${N8N_LEITURA}/clientes?tenant_id=${TENANT_ID}&q=${encodeURIComponent(q)}`);
     if (res.ok) {
-      todosClientes = await res.json();
-    } else {
-      todosClientes = [];
+      const doServidor = (await res.json()).filter(c => !c._empty);
+      // Preserva clientes criados localmente que ainda nao estao no banco
+      const idsServidor = new Set(doServidor.map(c => c.id));
+      const apenasLocais = todosClientes.filter(c => c._local && !idsServidor.has(c.id));
+      todosClientes = [...doServidor, ...apenasLocais];
     }
-  } catch {
-    todosClientes = [];
-  }
+    // se falhar, mantem o que ja tem
+  } catch {}
   renderClientes(todosClientes);
 }
 
@@ -3321,15 +3328,14 @@ async function salvarNovoCliente() {
 
   let id = crypto.randomUUID();
   try {
-    const res = await fetch(`${N8N_CADASTRO}/novo-cliente`, {
+    await fetch(`${N8N_CADASTRO}/novo-cliente`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tenant_id: TENANT_ID, nome, telefone: tel })
     });
-    if (res.ok) { const r = await res.json(); id = r.id || id; }
   } catch {}
 
-  const novoCliente = { id, nome, telefone: tel, pets: [] };
+  const novoCliente = { id, nome, telefone: tel, pets: [], _local: true };
   todosClientes.unshift(novoCliente);
   renderClientes(todosClientes);
   closeModal('modalNovoCliente');
@@ -3791,6 +3797,7 @@ updateDateDisplay();
 todosClientes = [];
 todosAgendamentos = [];
 loadConfig().then(() => loadAgenda());
+loadClientes(); // carrega silenciosamente no init para o fallback do encaixe funcionar
 </script>
 </body>
 </html>
