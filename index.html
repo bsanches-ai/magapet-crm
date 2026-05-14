@@ -1698,7 +1698,7 @@ function getHorarioDia(diaSemana, dateStr) {
 // AGENDA
 // =====================
 async function loadAgenda() {
-  const dateStr = currentDate.toISOString().split('T')[0];
+  const dateStr = currentDate.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
   const grid = document.getElementById('cardsGrid');
   if (grid) grid.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Carregando...</div></div>';
   try {
