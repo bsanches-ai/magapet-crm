@@ -2578,11 +2578,13 @@ async function marcarEntregue(id, usouPacote = false) {
       body: JSON.stringify({
         tenant_id: TENANT_ID,
         agendamento_id: id,
+        cliente_id: ag.cliente_id || null,
         pet_nome: ag.pet_nome,
         pet_sexo: ag.pet_sexo,
         tutor_telefone: ag.tutor_telefone,
         saldo_pacote: ag.saldo_pacote,
         usou_pacote: usouPacote,
+        usou_tosa_higienica: usouPacote && (ag.saldo_tosa_higienica > 0) && !!(ag.adicionais?.some(a => { const nome = typeof a === 'string' ? a : a.nome; return nome?.toLowerCase().includes('higiênica') || nome?.toLowerCase().includes('higienica'); })),
         google_link: GOOGLE_LINK_CONFIG,
         instagram: INSTAGRAM_CONFIG,
         valor_total: valorTotal
@@ -2591,7 +2593,11 @@ async function marcarEntregue(id, usouPacote = false) {
   } catch {}
   ag.status = 'entregue';
   showToast('Entregue! Mensagem enviada 💛', 'success');
-  function abrirConfirmacaoPacote(id) {
+  renderAgenda();
+  updateSummary();
+}
+
+function abrirConfirmacaoPacote(id) {
   const ag = agendamentos.find(a => a.id === id);
   if (!ag) return;
 
@@ -2604,7 +2610,6 @@ async function marcarEntregue(id, usouPacote = false) {
   const valorAdicionais = ag.adicionais_valor || 0;
   const valorDesconto = ag.desconto || 0;
 
-  // Calcula preço da tosa higiênica se tiver
   let precoTosaHig = 0;
   if (temTosaHigienica && ag.saldo_tosa_higienica > 0) {
     const adicionalTosaHig = ag.adicionais?.find(a => {
@@ -2618,7 +2623,6 @@ async function marcarEntregue(id, usouPacote = false) {
   const valorComPacote = Math.max(0, valorAdicionais - precoTosaHig - valorDesconto);
 
   const saldoInfo = `Saldo atual: ${ag.saldo_pacote} banho${ag.saldo_pacote > 1 ? 's' : ''}${ag.saldo_tosa_higienica > 0 ? ` + ${ag.saldo_tosa_higienica} tosa higiênica` : ''}`;
-
   const msg = `🎟️ Cliente tem pacote ativo\n${saldoInfo}\n\nSem pacote: ${formatMoney(valorSemPacote)}\nCom pacote: ${formatMoney(valorComPacote)}\n\nUsar pacote?`;
 
   if (confirm(msg)) {
@@ -2626,9 +2630,6 @@ async function marcarEntregue(id, usouPacote = false) {
   } else {
     marcarEntregue(id, false);
   }
-}
-  renderAgenda();
-  updateSummary();
 }
 
 // =====================
