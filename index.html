@@ -1775,9 +1775,13 @@ function renderCard(ag) {
     ? `<button class="btn" style="background:#fff3e8;color:#c47020;border:1px solid #e8903a;font-weight:600;" onclick="marcarAtendendo('${ag.id}')">✂️ Atender</button>` : '';
   const prontoBtn = statusReal === 'atendendo'
     ? `<button class="btn btn-pronto" onclick="marcarPronto('${ag.id}')">✓ Pronto</button>` : '';
-  const entregueBtn = statusReal === 'pronto'
-    ? `<button class="btn btn-entregue" onclick="marcarEntregue('${ag.id}')">🏠 Entregue</button>` : '';
-
+const temPacote = ag.saldo_pacote > 0;
+const entregueBtn = statusReal === 'pronto'
+    ? temPacote
+        ? `<button class="btn btn-entregue" onclick="abrirConfirmacaoPacote('${ag.id}')">🏠 Entregue</button>`
+        : `<button class="btn btn-entregue" onclick="marcarEntregue('${ag.id}', false)">🏠 Entregue</button>`
+    : '';
+  
   const historico = ag.historico?.length
     ? ag.historico.map(h => `<div class="history-item"><span>${h.servico}</span><span class="history-date">${h.data}</span></div>`).join('')
     : '<div class="expanded-item" style="color:var(--muted)">Primeira visita</div>';
@@ -2540,20 +2544,89 @@ async function marcarPronto(id) {
   updateSummary();
 }
 
-async function marcarEntregue(id) {
+async function marcarEntregue(id, usouPacote = false) {
   const ag = agendamentos.find(a => a.id === id);
   if (!ag) return;
-  // Calcula valor total: serviço + adicionais - desconto
-  const valorTotal = Math.max(0, (ag.valor || 0) + (ag.adicionais_valor || 0) - (ag.desconto || 0));
+
+  // Calcula valor a cobrar
+  let valorServico = ag.valor || 0;
+  let valorAdicionais = ag.adicionais_valor || 0;
+  let valorDesconto = ag.desconto || 0;
+
+  // Se usou pacote, desconta o banho e tosa higiênica se aplicável
+  if (usouPacote && ag.saldo_pacote > 0) {
+    valorServico = 0; // banho coberto pelo pacote
+    // Desconta tosa higiênica dos adicionais se tiver saldo
+    if (ag.saldo_tosa_higienica > 0) {
+      const adicionalTosaHig = ag.adicionais?.find(a => {
+        const nome = typeof a === 'string' ? a : a.nome;
+        return nome?.toLowerCase().includes('higiênica') || nome?.toLowerCase().includes('higienica');
+      });
+      if (adicionalTosaHig) {
+        const precoTosaHig = typeof adicionalTosaHig === 'object' ? (adicionalTosaHig.preco || 0) : 0;
+        valorAdicionais = Math.max(0, valorAdicionais - precoTosaHig);
+      }
+    }
+  }
+
+  const valorTotal = Math.max(0, valorServico + valorAdicionais - valorDesconto);
+
   try {
     await fetch(`${N8N_ATENDIMENTO}/entregue`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: id, pet_nome: ag.pet_nome, pet_sexo: ag.pet_sexo, tutor_telefone: ag.tutor_telefone, saldo_pacote: ag.saldo_pacote, google_link: GOOGLE_LINK_CONFIG, instagram: INSTAGRAM_CONFIG, valor_total: valorTotal })
+      body: JSON.stringify({
+        tenant_id: TENANT_ID,
+        agendamento_id: id,
+        pet_nome: ag.pet_nome,
+        pet_sexo: ag.pet_sexo,
+        tutor_telefone: ag.tutor_telefone,
+        saldo_pacote: ag.saldo_pacote,
+        usou_pacote: usouPacote,
+        google_link: GOOGLE_LINK_CONFIG,
+        instagram: INSTAGRAM_CONFIG,
+        valor_total: valorTotal
+      })
     });
   } catch {}
   ag.status = 'entregue';
   showToast('Entregue! Mensagem enviada 💛', 'success');
+  function abrirConfirmacaoPacote(id) {
+  const ag = agendamentos.find(a => a.id === id);
+  if (!ag) return;
+
+  const temTosaHigienica = ag.adicionais?.some(a => {
+    const nome = typeof a === 'string' ? a : a.nome;
+    return nome?.toLowerCase().includes('higiênica') || nome?.toLowerCase().includes('higienica');
+  });
+
+  const valorBanho = ag.valor || 0;
+  const valorAdicionais = ag.adicionais_valor || 0;
+  const valorDesconto = ag.desconto || 0;
+
+  // Calcula preço da tosa higiênica se tiver
+  let precoTosaHig = 0;
+  if (temTosaHigienica && ag.saldo_tosa_higienica > 0) {
+    const adicionalTosaHig = ag.adicionais?.find(a => {
+      const nome = typeof a === 'string' ? a : a.nome;
+      return nome?.toLowerCase().includes('higiênica') || nome?.toLowerCase().includes('higienica');
+    });
+    precoTosaHig = typeof adicionalTosaHig === 'object' ? (adicionalTosaHig.preco || 0) : 0;
+  }
+
+  const valorSemPacote = Math.max(0, valorBanho + valorAdicionais - valorDesconto);
+  const valorComPacote = Math.max(0, valorAdicionais - precoTosaHig - valorDesconto);
+
+  const saldoInfo = `Saldo atual: ${ag.saldo_pacote} banho${ag.saldo_pacote > 1 ? 's' : ''}${ag.saldo_tosa_higienica > 0 ? ` + ${ag.saldo_tosa_higienica} tosa higiênica` : ''}`;
+
+  const msg = `🎟️ Cliente tem pacote ativo\n${saldoInfo}\n\nSem pacote: ${formatMoney(valorSemPacote)}\nCom pacote: ${formatMoney(valorComPacote)}\n\nUsar pacote?`;
+
+  if (confirm(msg)) {
+    marcarEntregue(id, true);
+  } else {
+    marcarEntregue(id, false);
+  }
+}
   renderAgenda();
   updateSummary();
 }
