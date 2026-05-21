@@ -1769,7 +1769,7 @@ function renderCard(ag) {
     ag.saldo_pacote ? `<span class="tag tag-pacote">🎟️ ${ag.saldo_pacote} banhos</span>` : '',
     ag.pendente_humano ? '<span class="tag tag-pendente">⚠️ Pendente</span>' : '',
     // FIX-8: tag bloqueado no card
-    (() => { const tl = String(ag.tutor_telefone||'').replace(/\D/g,''); return (clientesBloqueados.has(ag.tutor_telefone)||clientesBloqueados.has(tl)||todosClientes.some(c=>String(c.telefone||'').replace(/\D/g,''')===tl&&c.bloqueado)) ? '<span class="tag tag-bloqueado">🚫 Bloqueado</span>' : ''; })(),
+    (() => { const tl = String(ag.tutor_telefone||'').replace(/\D/g,''); return (clientesBloqueados.has(ag.tutor_telefone)||clientesBloqueados.has(tl)||todosClientes.some(c=>String(c.telefone||'').replace(/\D/g,'')===tl&&c.bloqueado)) ? '<span class="tag tag-bloqueado">🚫 Bloqueado</span>' : ''; })(),
   ].filter(Boolean).join('');
 
   const editarBtn = !['entregue','cancelado'].includes(statusReal)
