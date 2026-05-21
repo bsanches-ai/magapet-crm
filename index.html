@@ -711,6 +711,28 @@
     select { color: #1a2540; }
     select option { color: #1a2540; }
     select option { color: #1a2540; }
+
+    /* FIX-8: tag bloqueado */
+    .tag-bloqueado { background: rgba(217,95,82,0.18); color: var(--red); border: 1px solid rgba(217,95,82,0.3); }
+    /* FIX-7: aviso bloqueado inline no encaixe */
+    .bloqueado-aviso-encaixe {
+      background: rgba(217,95,82,0.08);
+      border: 1px solid rgba(217,95,82,0.3);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: #d95f52;
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .bloqueado-aviso-encaixe button {
+      background: #d95f52; color: white; border: none; border-radius: 8px;
+      padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
+      font-family: 'DM Sans', sans-serif; white-space: nowrap; flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
@@ -1017,7 +1039,7 @@
         <button class="btn btn-adicional" onclick="abrirNovoCliente()">+ Novo cliente</button>
       </div>
       <div class="form-group" style="max-width: 400px; margin-bottom: 20px;">
-        <input class="form-input" type="text" placeholder="🔍 Buscar por nome ou telefone..." id="searchClientes" oninput="searchClientes(this.value)">
+        <input class="form-input" type="text" placeholder="🔍 Buscar por nome ou telefone..." id="inputBuscaClientes" oninput="filtrarClientes(this.value)">
       </div>
       <div id="clientesList"></div>
     </div>
@@ -1433,6 +1455,7 @@ let selectedAdicional = null;
 let clienteAtual = null;
 
 let clientesBloqueados = new Set(); // telefones bloqueados (sem formatação e com)
+let bloqueadoConfirmado = false; // FIX-7: usuário confirmou prosseguir com bloqueado
 
 // Config do tenant (carregada do banco)
 let CAPACIDADE_DIA = {
@@ -1765,6 +1788,8 @@ function renderCard(ag) {
     ag.cliente_novo ? '<span class="tag tag-novo">🆕 Novo</span>' : '',
     ag.saldo_pacote ? `<span class="tag tag-pacote">🎟️ ${ag.saldo_pacote} banhos</span>` : '',
     ag.pendente_humano ? '<span class="tag tag-pendente">⚠️ Pendente</span>' : '',
+    // FIX-8: tag bloqueado no card
+    (() => { const tl = String(ag.tutor_telefone||'').replace(/\D/g,''); return (clientesBloqueados.has(ag.tutor_telefone)||clientesBloqueados.has(tl)||todosClientes.some(c=>String(c.telefone||'').replace(/\D/g,''')===tl&&c.bloqueado)) ? '<span class="tag tag-bloqueado">🚫 Bloqueado</span>' : ''; })(),
   ].filter(Boolean).join('');
 
   const editarBtn = !['entregue','cancelado'].includes(statusReal)
@@ -2764,17 +2789,42 @@ async function buscarClienteEncaixe() {
 // mantida para compatibilidade com qualquer chamada antiga
 function searchExistingClient(val) {}
 
+// FIX-7/8: renderSearchResults com badge bloqueado e handler que intercepta bloqueados
 function renderSearchResults(data) {
   const el = document.getElementById('searchResults');
   if (!data?.length) { el.innerHTML = ''; return; }
   _searchResultsCache = data;
   el.innerHTML = data.map((c, i) => {
-    const petNomes = c.pets?.map(p => typeof p === 'string' ? p : p.nome).filter(Boolean).join(', ') || 'nenhum';
-    return `<div class="search-result" onclick="selectCliente(_searchResultsCache[${i}])">
-      <div class="search-result-name">👤 ${c.nome}</div>
+    const petNomes = (c.pets || []).map(p => typeof p === 'string' ? p : p.nome).filter(Boolean).join(', ') || 'nenhum';
+    const telLimpo = String(c.telefone || '').replace(/\D/g, '');
+    const isBloq = c.bloqueado || clientesBloqueados.has(c.telefone) || clientesBloqueados.has(telLimpo);
+    const tagBloq = isBloq ? `<span style="background:rgba(217,95,82,0.15);color:#d95f52;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:6px;">🚫 Bloqueado</span>` : '';
+    return `<div class="search-result" onclick="_onSelectClienteEncaixe(${i})" style="${isBloq ? 'border-color:rgba(217,95,82,0.3);' : ''}">
+      <div class="search-result-name">👤 ${c.nome}${tagBloq}</div>
       <div class="search-result-sub">${String(c.telefone || '')} • Pets: ${petNomes}</div>
     </div>`;
   }).join('');
+}
+
+// FIX-7: intercepta seleção — se bloqueado, exibe aviso com botão de confirmar
+function _onSelectClienteEncaixe(i) {
+  const c = _searchResultsCache[i];
+  if (!c) return;
+  const telLimpo = String(c.telefone || '').replace(/\D/g, '');
+  const isBloq = c.bloqueado || clientesBloqueados.has(c.telefone) || clientesBloqueados.has(telLimpo);
+  if (isBloq) {
+    document.getElementById('searchResults').innerHTML = `<div class="bloqueado-aviso-encaixe">
+      <span>🚫 <strong>${c.nome}</strong> está bloqueado(a). Deseja prosseguir mesmo assim?</span>
+      <button onclick="selectClienteBloqueadoConfirmado(${i})">Sim, prosseguir</button>
+    </div>`;
+    return;
+  }
+  selectCliente(c);
+}
+
+function selectClienteBloqueadoConfirmado(i) {
+  bloqueadoConfirmado = true;
+  selectCliente(_searchResultsCache[i]);
 }
 
 function selectCliente(c) {
@@ -2832,10 +2882,16 @@ function selectPet(id, nome, el) {
   document.querySelectorAll('#petSelectorList .search-result').forEach(e => e.style.borderColor = 'var(--border)');
   el.style.borderColor = 'var(--gold)';
   const pets = clienteAtual?.pets || [];
-  const petData = pets.find(p => (typeof p === 'object' ? p.id : p) === id);
+  // FIX-1: busca por id ou por nome (caso id seja string igual ao nome)
+  const petData = pets.find(p => {
+    if (typeof p === 'object') return p.id === id || p.nome === nome;
+    return p === nome;
+  });
   const porte = petData?.porte || '';
   const pelagem = petData?.pelagem || '';
-  clienteAtual.petSelecionado = { id, nome, porte, pelagem };
+  // FIX-1: se id é igual ao nome (sem uuid real), usa nome como fallback de identificação
+  const petIdFinal = (id && id !== nome) ? id : (petData?.id || nome);
+  clienteAtual.petSelecionado = { id: petIdFinal, nome, porte, pelagem };
   document.getElementById('petNome').value = nome;
   document.getElementById('petNome').closest('.form-group').style.display = 'none';
   document.getElementById('petRacaGroup').style.display = 'none';
@@ -2871,7 +2927,8 @@ function verificarBloqueioTel(tel) {
   if (!aviso) return;
   const clienteBloqueado = todosClientes.find(c => String(c.telefone || '').replace(/\D/g,'') === telLimpo && c.bloqueado);
   const bloqueado = clientesBloqueados.has(telStr) || clientesBloqueados.has(telLimpo) || !!clienteBloqueado;
-  aviso.style.display = bloqueado ? 'block' : 'none';
+  // FIX-7: se já confirmou prosseguir, não exibe o aviso
+  aviso.style.display = (bloqueado && !bloqueadoConfirmado) ? 'block' : 'none';
 }
 
 async function salvarEncaixe() {
@@ -2884,10 +2941,10 @@ async function salvarEncaixe() {
   const horario = document.getElementById('horarioSelect').value;
 
   const faltando = [];
-  // Bloqueia se cliente estiver na lista de bloqueados
+  // FIX-7: só bloqueia se usuário não confirmou prosseguir
   const telLimpoEnc = tel.replace(/\D/g, '');
   const clienteBloqEnc = todosClientes.find(c => String(c.telefone || '').replace(/\D/g,'') === telLimpoEnc && c.bloqueado);
-  if (clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpoEnc) || clienteBloqEnc) {
+  if (!bloqueadoConfirmado && (clientesBloqueados.has(tel) || clientesBloqueados.has(telLimpoEnc) || clienteBloqEnc)) {
     showToast('🚫 Cliente bloqueado — não é possível agendar', 'error');
     return;
   }
@@ -2903,11 +2960,10 @@ async function salvarEncaixe() {
     return;
   }
 
+  // FIX-1: valida pet_id (não usa se for igual ao nome — não é uuid real)
   let petId = petSelecionado?.id || null;
+  if (petId && petId === petSelecionado?.nome) petId = null;
   let clienteId = clienteAtual?.id || null;
-
-  // Se cliente existente mas pet novo, o fluxo de encaixe no n8n cuida da criação do pet
-  // Não chama /novo-pet separado
 
   // Cria o agendamento com pet_id
   try {
@@ -2990,6 +3046,7 @@ async function salvarEncaixe() {
   const wrap = document.getElementById('petSelectorWrap');
   if (wrap) wrap.remove();
   clienteAtual = null;
+  bloqueadoConfirmado = false; // FIX-7: reseta confirmação
 
   setTimeout(async () => {
     currentDate = new Date(data + 'T12:00:00');
@@ -3040,13 +3097,17 @@ function getMockDashboard() {
 }
 
 function renderDashboard(d) {
-  document.getElementById('receitaHoje').textContent = formatMoney(d.receita_hoje);
-  document.getElementById('receitaMes').textContent = formatMoney(d.receita_mes);
+  // FIX-9: soma receita de pacotes nos totais de receita
+  const _recPacotesMes = parseFloat(d.receita_pacotes_mes) || 0;
+  const _recPacotesHoje = parseFloat(d.receita_pacotes_hoje) || 0;
+  document.getElementById('receitaHoje').textContent = formatMoney((parseFloat(d.receita_hoje) || 0) + _recPacotesHoje);
+  document.getElementById('receitaMes').textContent = formatMoney((parseFloat(d.receita_mes) || 0) + _recPacotesMes);
   document.getElementById('atendMes').textContent = d.atend_mes;
   document.getElementById('ticketMedio').textContent = formatMoney(d.ticket_medio);
-  document.getElementById('pacotesAtivos').textContent = d.pacotes_ativos;
+  // FIX-9: pacotes_ativos do banco
+  document.getElementById('pacotesAtivos').textContent = d.pacotes_ativos || 0;
   document.getElementById('pacotesMes').textContent = d.pacotes_mes || 0;
-  document.getElementById('receitaPacotes').textContent = formatMoney(d.receita_pacotes_mes || 0);
+  document.getElementById('receitaPacotes').textContent = formatMoney(_recPacotesMes);
 
   // Bar chart - last 30 days with value labels
   const dias30 = d.por_dia.slice(-30);
@@ -3084,14 +3145,17 @@ function renderDashboard(d) {
   ).join('');
 
   // Tabela
-  document.getElementById('tabelaBody').innerHTML = d.historico.map(h =>
-    `<tr style="border-bottom: 1px solid var(--border);">
+  // FIX-6: subtrai desconto no valor exibido na tabela
+  document.getElementById('tabelaBody').innerHTML = d.historico.map(h => {
+    const valorLiquido = Math.max(0, (parseFloat(h.valor) || 0) - (parseFloat(h.desconto) || 0));
+    return `<tr style="border-bottom: 1px solid var(--border);">
       <td style="padding: 8px; color: var(--muted);">${h.data}</td>
       <td style="padding: 8px;">${h.pet}</td>
       <td style="padding: 8px; color: var(--muted);">${h.tutor}</td>
       <td style="padding: 8px;">${h.servico}</td>
-      <td style="padding: 8px; text-align: right; color: var(--blue);">${formatMoney(h.valor)}</td>
-    </tr>`).join('');
+      <td style="padding: 8px; text-align: right; color: var(--blue);">${formatMoney(valorLiquido)}</td>
+    </tr>`;
+  }).join('');
 }
 
 function exportarRelatorio() {
@@ -3117,28 +3181,35 @@ async function loadClientes(q = '') {
     const res = await fetch(`${N8N_LEITURA}/clientes?tenant_id=${TENANT_ID}&q=${encodeURIComponent(q)}`);
     if (res.ok) {
       const doServidor = (await res.json()).filter(c => !c._empty);
-      // Preserva clientes criados localmente que ainda nao estao no banco
+      // FIX-3: preserva flag bloqueado e pets adicionados localmente
+      doServidor.forEach(cs => {
+        const local = todosClientes.find(cl => cl.id === cs.id || String(cl.telefone||'').replace(/\D/g,'') === String(cs.telefone||'').replace(/\D/g,''));
+        if (local?.bloqueado) cs.bloqueado = true;
+      });
       const idsServidor = new Set(doServidor.map(c => c.id));
       const apenasLocais = todosClientes.filter(c => c._local && !idsServidor.has(c.id));
       todosClientes = [...doServidor, ...apenasLocais];
     }
-    // se falhar, mantem o que ja tem
   } catch {}
   renderClientes(todosClientes);
 }
 
+// FIX-8: renderClientes com badge bloqueado
 function renderClientes(data) {
   const el = document.getElementById('clientesList');
   if (!data?.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">Nenhum cliente encontrado</div></div>'; return; }
   el.innerHTML = `<div style="display:flex; flex-direction:column; gap:8px; max-width:600px;">` +
     data.map(c => {
-      const petNomes = c.pets?.map(p => typeof p === 'string' ? p : p.nome).join(', ') || 'nenhum';
+      const petNomes = (c.pets || []).map(p => typeof p === 'string' ? p : p.nome).filter(Boolean).join(', ') || 'nenhum';
       const safeC = JSON.stringify(c).replace(/"/g, '&quot;');
+      const telLimpo = String(c.telefone || '').replace(/\D/g, '');
+      const isBloq = c.bloqueado || clientesBloqueados.has(c.telefone) || clientesBloqueados.has(telLimpo);
+      const tagBloq = isBloq ? `<span style="background:rgba(217,95,82,0.15);color:#d95f52;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:6px;">🚫 Bloqueado</span>` : '';
       return `
-      <div class="search-result" onclick="abrirFicha(${safeC})">
+      <div class="search-result" onclick="abrirFicha(${safeC})" style="${isBloq ? 'border-color:rgba(217,95,82,0.2);' : ''}">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <div>
-            <div class="search-result-name">👤 ${c.nome}</div>
+            <div class="search-result-name">👤 ${c.nome}${tagBloq}</div>
             <div class="search-result-sub">${c.telefone} • Pets: ${petNomes}</div>
           </div>
           <div style="text-align:right;">
@@ -3150,21 +3221,18 @@ function renderClientes(data) {
     }).join('') + `</div>`;
 }
 
-let searchClientesTimeout;
 let todosClientes = [];
 
-function searchClientes(val) {
-  clearTimeout(searchClientesTimeout);
-  searchClientesTimeout = setTimeout(() => {
-    if (!val.trim()) { renderClientes(todosClientes); return; }
-    const q = val.toLowerCase();
-    const filtrados = todosClientes.filter(c =>
-      c.nome.toLowerCase().includes(q) ||
-      c.telefone.includes(q) ||
-      c.pets?.some(p => (typeof p === 'string' ? p : p.nome).toLowerCase().includes(q))
-    );
-    renderClientes(filtrados);
-  }, 300);
+// FIX-2: renomeada para evitar conflito com id do input
+function filtrarClientes(val) {
+  if (!val || !val.trim()) { renderClientes(todosClientes); return; }
+  const q = val.toLowerCase();
+  const filtrados = todosClientes.filter(c =>
+    (c.nome || '').toLowerCase().includes(q) ||
+    (c.telefone || '').includes(q) ||
+    (c.pets || []).some(p => (typeof p === 'string' ? p : p.nome || '').toLowerCase().includes(q))
+  );
+  renderClientes(filtrados);
 }
 
 let clienteAtualFicha = null;
@@ -3194,6 +3262,7 @@ function abrirFicha(cliente) {
         <button class="btn btn-whatsapp" onclick="abrirWhatsApp('${cliente.telefone}')">💬 WhatsApp</button>
       </div>
     </div>
+    ${(() => { const tl=String(cliente.telefone||'').replace(/\D/g,''); const bloq=cliente.bloqueado||clientesBloqueados.has(cliente.telefone)||clientesBloqueados.has(tl); return bloq ? '<div style=\"background:rgba(217,95,82,0.08);border:1px solid rgba(217,95,82,0.25);border-radius:10px;padding:10px 14px;font-size:13px;color:#d95f52;margin-bottom:12px;\">🚫 Este cliente está bloqueado para atendimento.</div>' : ''; })()}
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
       ${cliente.saldo_pacote ? `<div style="background:rgba(76,175,125,0.1);border:1px solid rgba(76,175,125,0.2);border-radius:10px;padding:10px 16px;font-size:13px;color:var(--green);flex:1;">🎟️ Pacote ativo: ${cliente.saldo_pacote} banhos disponíveis</div>` : ''}
       <button class="btn btn-adicional" onclick="abrirAdicionarPacote('${cliente.id}', '${cliente.nome}')">🎟️ + Pacote</button>
@@ -3447,15 +3516,22 @@ async function salvarNovoCliente() {
   const tel  = document.getElementById('novo-cliente-tel').value.trim();
   if (!nome || !tel) { showToast('Nome e WhatsApp são obrigatórios', 'error'); return; }
 
-  let id = crypto.randomUUID();
+  // FIX-3: aguarda ID real do backend
+  let id = 'local-' + Date.now();
   try {
-    await fetch(`${N8N_CADASTRO}/novo-cliente`, {
+    const res = await fetch(`${N8N_CADASTRO}/novo-cliente`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tenant_id: TENANT_ID, nome, telefone: tel })
     });
+    if (res.ok) {
+      const r = await res.json();
+      id = r?.id || r?.[0]?.id || id;
+    }
   } catch {}
 
+  // FIX-3: remove duplicata por telefone antes de inserir
+  todosClientes = todosClientes.filter(c => String(c.telefone||'').replace(/\D/g,'') !== tel.replace(/\D/g,''));
   const novoCliente = { id, nome, telefone: tel, pets: [], _local: true };
   todosClientes.unshift(novoCliente);
   renderClientes(todosClientes);
@@ -3517,9 +3593,15 @@ async function confirmarPacote() {
     });
   } catch {}
 
-  // Update mock local
+  // FIX-5: atualiza saldo em todosClientes E clienteAtualFicha para persistir na sessão
+  const idxCliente = todosClientes.findIndex(c => c.id === clienteId);
+  if (idxCliente >= 0) {
+    todosClientes[idxCliente].saldo_pacote = (todosClientes[idxCliente].saldo_pacote || 0) + 4;
+    todosClientes[idxCliente].saldo_tosa_higienica = (todosClientes[idxCliente].saldo_tosa_higienica || 0) + 1;
+  }
   if (clienteAtualFicha && clienteAtualFicha.id === clienteId) {
-    clienteAtualFicha.saldo_pacote = 4;
+    clienteAtualFicha.saldo_pacote = (clienteAtualFicha.saldo_pacote || 0) + 4;
+    clienteAtualFicha.saldo_tosa_higienica = (clienteAtualFicha.saldo_tosa_higienica || 0) + 1;
   }
 
   closeModal('modalAdicionarPacote');
@@ -3591,16 +3673,21 @@ async function salvarNovoPet() {
     } catch {}
   }
 
-  // Adiciona localmente
+  // FIX-4: atualiza clienteAtualFicha e todosClientes localmente
   if (clienteAtualFicha && clienteAtualFicha.id === clienteId) {
     clienteAtualFicha.pets = clienteAtualFicha.pets || [];
-    clienteAtualFicha.pets.push(dados);
+    // evita duplicata por nome
+    if (!clienteAtualFicha.pets.some(p => (typeof p === 'object' ? p.id : p) === dados.id)) {
+      clienteAtualFicha.pets.push(dados);
+    }
   }
 
   const cIdx = todosClientes.findIndex(c => c.id === clienteId);
   if (cIdx >= 0) {
     todosClientes[cIdx].pets = todosClientes[cIdx].pets || [];
-    todosClientes[cIdx].pets.push(dados);
+    if (!todosClientes[cIdx].pets.some(p => (typeof p === 'object' ? p.id : p) === dados.id)) {
+      todosClientes[cIdx].pets.push(dados);
+    }
   }
 
   closeModal('modalNovoPet');
@@ -3658,9 +3745,12 @@ async function confirmarRemoverPet(petId, petNome) {
       body: JSON.stringify({ tenant_id: TENANT_ID, pet_id: petId })
     });
   } catch {}
-  // Remove localmente
+  // FIX-4: remove corretamente comparando id como objeto
   if (clienteAtualFicha) {
-    clienteAtualFicha.pets = clienteAtualFicha.pets?.filter(p => p.id !== petId);
+    clienteAtualFicha.pets = (clienteAtualFicha.pets || []).filter(p => {
+      const id = typeof p === 'object' ? p.id : null;
+      return id !== petId;
+    });
     const cIdx = todosClientes.findIndex(c => c.id === clienteAtualFicha.id);
     if (cIdx >= 0) todosClientes[cIdx].pets = clienteAtualFicha.pets;
     abrirFicha(clienteAtualFicha);
