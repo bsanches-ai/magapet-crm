@@ -3206,15 +3206,47 @@ function renderClientes(data) {
 let todosClientes = [];
 
 // FIX-2: renomeada para evitar conflito com id do input
+let _filtrarClientesTimeout = null;
+
 function filtrarClientes(val) {
-  if (!val || !val.trim()) { renderClientes(todosClientes); return; }
+  clearTimeout(_filtrarClientesTimeout);
+  if (!val || !val.trim()) {
+    renderClientes(todosClientes);
+    return;
+  }
+  // Filtra localmente primeiro (resposta imediata)
   const q = val.toLowerCase();
-  const filtrados = todosClientes.filter(c =>
+  const qNum = val.replace(/\D/g, '');
+  const local = todosClientes.filter(c =>
     (c.nome || '').toLowerCase().includes(q) ||
     (c.telefone || '').includes(q) ||
+    (qNum && (c.telefone || '').replace(/\D/g, '').includes(qNum)) ||
     (c.pets || []).some(p => (typeof p === 'string' ? p : p.nome || '').toLowerCase().includes(q))
   );
-  renderClientes(filtrados);
+  renderClientes(local);
+
+  // Busca no n8n após 400ms (igual ao encaixe)
+  _filtrarClientesTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(`${N8N_LEITURA}/buscar-cliente?tenant_id=${TENANT_ID}&q=${encodeURIComponent(val)}`);
+      if (res.ok) {
+        const text = await res.text();
+        let raw;
+        try { raw = JSON.parse(text); } catch { raw = []; }
+        const filtrado = (Array.isArray(raw) ? raw : []).filter(c => !c._empty && c.nome);
+        if (filtrado.length) {
+          // Preserva flag bloqueado
+          filtrado.forEach(cs => {
+            const local = todosClientes.find(cl => cl.id === cs.id);
+            if (local?.bloqueado) cs.bloqueado = true;
+          });
+          renderClientes(filtrado);
+          return;
+        }
+      }
+    } catch {}
+    // Fallback: mantém resultado local
+  }, 400);
 }
 
 let clienteAtualFicha = null;
