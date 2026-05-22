@@ -1856,7 +1856,7 @@ const entregueBtn = statusReal === 'pronto'
                 })()}
               </div>`
             : ag.saldo_pacote
-              ? `<span class="service-value" style="color:var(--green);">${ag.adicionais_valor ? formatMoney(ag.adicionais_valor) : 'R$ 0'}</span>`
+              ? `<span class="service-value" style="color:var(--green);">${formatMoney(Math.max(0, (ag.adicionais_valor || 0) - (ag.desconto || 0)))}</span>`
               : `<span class="service-value">${formatMoney(valorTotal - (ag.desconto || 0))}</span>`
           }
           <button onclick="toggleVoucher('${ag.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--muted);padding:2px 4px;border-radius:4px;transition:color 0.2s;" title="Voucher/Desconto" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--muted)'">🏷️</button>
@@ -2050,7 +2050,7 @@ async function confirmarBloqueio() {
     await fetch(`${N8N_ATENDIMENTO}/bloquear`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: currentCardId, motivo, tutor_telefone: ag?.tutor_telefone })
+      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: currentCardId, motivo, tutor_telefone: ag?.tutor_telefone, cliente_id: ag?.cliente_id || null })
     });
   } catch {}
   if (ag?.tutor_telefone) {
@@ -2566,11 +2566,12 @@ async function marcarEntregue(id, usouPacote = false) {
   let valorServico = ag.valor || 0;
   let valorAdicionais = ag.adicionais_valor || 0;
   let valorDesconto = ag.desconto || 0;
+  let usouTosaHigienica = false;
 
-  // Se usou pacote, desconta o banho e tosa higiênica se aplicável
   if (usouPacote && ag.saldo_pacote > 0) {
-    valorServico = 0; // banho coberto pelo pacote
-    // Desconta tosa higiênica dos adicionais se tiver saldo
+    // Banho coberto pelo pacote
+    valorServico = 0;
+    // Verifica se tem tosa higiênica nos adicionais E se ainda tem saldo disponível
     if (ag.saldo_tosa_higienica > 0) {
       const adicionalTosaHig = ag.adicionais?.find(a => {
         const nome = typeof a === 'string' ? a : a.nome;
@@ -2579,6 +2580,7 @@ async function marcarEntregue(id, usouPacote = false) {
       if (adicionalTosaHig) {
         const precoTosaHig = typeof adicionalTosaHig === 'object' ? (adicionalTosaHig.preco || 0) : 0;
         valorAdicionais = Math.max(0, valorAdicionais - precoTosaHig);
+        usouTosaHigienica = true;
       }
     }
   }
@@ -2598,7 +2600,7 @@ async function marcarEntregue(id, usouPacote = false) {
         tutor_telefone: ag.tutor_telefone,
         saldo_pacote: ag.saldo_pacote,
         usou_pacote: usouPacote,
-        usou_tosa_higienica: usouPacote && (ag.saldo_tosa_higienica > 0) && !!(ag.adicionais?.some(a => { const nome = typeof a === 'string' ? a : a.nome; return nome?.toLowerCase().includes('higiênica') || nome?.toLowerCase().includes('higienica'); })),
+        usou_tosa_higienica: usouTosaHigienica,
         google_link: GOOGLE_LINK_CONFIG,
         instagram: INSTAGRAM_CONFIG,
         valor_total: valorTotal
@@ -2636,8 +2638,11 @@ function abrirConfirmacaoPacote(id) {
   const valorSemPacote = Math.max(0, valorBanho + valorAdicionais - valorDesconto);
   const valorComPacote = Math.max(0, valorAdicionais - precoTosaHig - valorDesconto);
 
-  const saldoInfo = `Saldo atual: ${ag.saldo_pacote} banho${ag.saldo_pacote > 1 ? 's' : ''}${ag.saldo_tosa_higienica > 0 ? ` + ${ag.saldo_tosa_higienica} tosa higiênica` : ''}`;
-  const msg = `🎟️ Cliente tem pacote ativo\n${saldoInfo}\n\nSem pacote: ${formatMoney(valorSemPacote)}\nCom pacote: ${formatMoney(valorComPacote)}\n\nUsar pacote?`;
+  const tosaDisp = ag.saldo_tosa_higienica > 0;
+  const temTosaNoAdic = ag.adicionais?.some(a => { const n = typeof a === 'string' ? a : a.nome; return n?.toLowerCase().includes('higiênica') || n?.toLowerCase().includes('higienica'); });
+  const saldoInfo = `Saldo: ${ag.saldo_pacote} banho${ag.saldo_pacote > 1 ? 's' : ''}${tosaDisp ? ` + ${ag.saldo_tosa_higienica} tosa higiênica` : ''}`;
+  const tosaMsg = tosaDisp && temTosaNoAdic ? '\n✂️ Tosa higiênica coberta pelo pacote' : '';
+  const msg = `🎟️ Cliente tem pacote ativo\n${saldoInfo}\n\nSem pacote: ${formatMoney(valorSemPacote)}\nCom pacote: ${formatMoney(valorComPacote)}${tosaMsg}\n\nUsar pacote?`;
 
   if (confirm(msg)) {
     marcarEntregue(id, true);
@@ -2965,7 +2970,7 @@ async function salvarEncaixe() {
       body: JSON.stringify({
         tenant_id: TENANT_ID,
         tutor_nome: nome,
-        tutor_telefone: tel,
+        tutor_telefone: normalizarTelefone(tel),
         pet_nome: petNome,
         pet_id: petId,
         pet_porte: clienteAtual?.petSelecionado?.porte || document.getElementById('petPorte')?.value || '',
@@ -3531,6 +3536,16 @@ function abrirNovoCliente() {
   document.getElementById('modalNovoCliente').classList.add('open');
 }
 
+function normalizarTelefone(tel) {
+  if (!tel) return tel;
+  const limpo = String(tel).replace(/\D/g, '');
+  // Se já começa com 55 e tem 12+ dígitos, está ok
+  if (limpo.startsWith('55') && limpo.length >= 12) return limpo;
+  // Se tem 10-11 dígitos (DDD+número), adiciona 55
+  if (limpo.length >= 10 && limpo.length <= 11) return '55' + limpo;
+  return limpo;
+}
+
 async function salvarNovoCliente() {
   const nome = document.getElementById('novo-cliente-nome').value.trim();
   const tel  = document.getElementById('novo-cliente-tel').value.trim();
@@ -3542,7 +3557,7 @@ async function salvarNovoCliente() {
     const res = await fetch(`${N8N_CADASTRO}/novo-cliente`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: TENANT_ID, nome, telefone: tel })
+      body: JSON.stringify({ tenant_id: TENANT_ID, nome, telefone: normalizarTelefone(tel) })
     });
     if (res.ok) {
       const r = await res.json();
@@ -3738,7 +3753,7 @@ async function salvarTutor() {
     tenant_id: TENANT_ID,
     cliente_id: clienteAtualFicha.id,
     nome: document.getElementById('edit-tutor-nome').value,
-    telefone: document.getElementById('edit-tutor-tel').value,
+    telefone: normalizarTelefone(document.getElementById('edit-tutor-tel').value),
     telefone_secundario: document.getElementById('edit-tutor-tel2').value,
     email: document.getElementById('edit-tutor-email').value,
     endereco: document.getElementById('edit-tutor-endereco').value,
