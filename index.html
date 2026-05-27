@@ -3275,6 +3275,25 @@ function filtrarClientes(val) {
 
 let clienteAtualFicha = null;
 
+async function desbloquearCliente(clienteId, telefone) {
+  if (!confirm('Desbloquear este cliente para atendimento?')) return;
+  try {
+    await fetch(`${N8N_CADASTRO}/desbloquear-cliente`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: TENANT_ID, cliente_id: clienteId, telefone })
+    });
+  } catch {}
+  // Atualiza localmente
+  const idx = todosClientes.findIndex(c => c.id === clienteId);
+  if (idx >= 0) todosClientes[idx].bloqueado = false;
+  if (clienteAtualFicha && clienteAtualFicha.id === clienteId) clienteAtualFicha.bloqueado = false;
+  clientesBloqueados.delete(telefone);
+  clientesBloqueados.delete(String(telefone).replace(/\D/g, ''));
+  showToast('Cliente desbloqueado ✓', 'success');
+  abrirFicha(clienteAtualFicha);
+}
+
 function abrirFicha(cliente) {
   clienteAtualFicha = cliente;
   showPage('ficha');
@@ -3299,6 +3318,7 @@ function abrirFicha(cliente) {
       <div style="display:flex;gap:8px;margin-left:auto;">
         <button class="btn btn-adicional" onclick="editarTutor(clienteAtualFicha)">✏️ Editar</button>
         <button class="btn btn-whatsapp" onclick="abrirWhatsApp('${cliente.telefone}')">💬 WhatsApp</button>
+        ${(() => { const tl = String(cliente.telefone||'').replace(/\D/g,''); const bloq = cliente.bloqueado || clientesBloqueados.has(cliente.telefone) || clientesBloqueados.has(tl); return bloq ? `<button class="btn" style="background:#fef0ee;color:#d95f52;border:1px solid #d95f52;" onclick="desbloquearCliente('${cliente.id}','${cliente.telefone}')">🔓 Desbloquear</button>` : ''; })()}
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
