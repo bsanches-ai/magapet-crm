@@ -1241,7 +1241,7 @@
 
     <div class="form-group" style="margin-bottom:12px;">
       <label class="form-label">Valor pago (R$)</label>
-      <input class="modal-input" type="number" id="pacote-valor" placeholder="260" value="260" min="0" step="1" style="margin:0;">
+      <input class="modal-input" type="number" id="pacote-valor" placeholder="260" value="260" min="0" step="1" style="margin:0;" oninput="document.getElementById('btnConfirmarPacote').textContent='Confirmar R$ '+parseFloat(this.value||0).toLocaleString('pt-BR',{minimumFractionDigits:0})">
     </div>
 
     <div class="form-group" style="margin-bottom:12px;">
@@ -1260,7 +1260,7 @@
 
     <div class="modal-actions">
       <button class="btn-modal-cancel" onclick="closeModal('modalAdicionarPacote')">Cancelar</button>
-      <button class="btn-modal-primary" onclick="confirmarPacote()">Confirmar R$ 260</button>
+      <button class="btn-modal-primary" onclick="confirmarPacote()" id="btnConfirmarPacote">Confirmar R$ 260</button>
     </div>
   </div>
 </div>
@@ -3805,7 +3805,7 @@ async function confirmarPacote() {
   }
 
   closeModal('modalAdicionarPacote');
-  showToast('Pacote adicionado! R$ 260 registrado ✓', 'success');
+  showToast(`Pacote adicionado! R$ ${valorPacote.toLocaleString('pt-BR', {minimumFractionDigits:0})} registrado ✓`, 'success');
   if (clienteAtualFicha) abrirFicha(clienteAtualFicha);
 }
 
