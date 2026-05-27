@@ -3121,17 +3121,18 @@ function renderDashboard(d) {
   document.getElementById('pacotesMes').textContent = d.pacotes_mes || 0;
   document.getElementById('receitaPacotes').textContent = formatMoney(_recPacotesMes);
 
-  // Bar chart - last 30 days with value labels
-  const dias30 = d.por_dia.slice(-30);
-  const maxVal = Math.max(...dias30, 1);
-  const hoje = new Date();
-  document.getElementById('barChart').innerHTML = dias30.map((v, i) => {
-    const dia = new Date(hoje);
-    dia.setDate(hoje.getDate() - (29 - i));
-    const diaNum = dia.getDate();
+  // Bar chart — dias do mês filtrado
+  const _mes = parseInt(document.getElementById('periodoFiltroTop')?.value || new Date().getMonth() + 1);
+  const _ano = parseInt(document.getElementById('anoFiltroTop')?.value || new Date().getFullYear());
+  const _diasNoMes = new Date(_ano, _mes, 0).getDate();
+  // por_dia deve ter um valor por dia do mês; normaliza para _diasNoMes entradas
+  const diasMes = Array.from({length: _diasNoMes}, (_, i) => (d.por_dia || [])[i] || 0);
+  const maxVal = Math.max(...diasMes, 1);
+  document.getElementById('barChart').innerHTML = diasMes.map((v, i) => {
+    const diaNum = i + 1;
     return `<div class="bar-wrap" style="position:relative;">
       ${v > 0 ? `<div style="font-size:8px;color:var(--blue);margin-bottom:2px;font-weight:600;">${v}</div>` : '<div style="font-size:8px;color:transparent;margin-bottom:2px;">0</div>'}
-      <div class="bar" style="height:${Math.max((v/maxVal*100), v > 0 ? 4 : 0)}%;min-height:${v > 0 ? '4px' : '0'};" title="${diaNum}/${dia.getMonth()+1}: ${v} atendimentos"></div>
+      <div class="bar" style="height:${Math.max((v/maxVal*100), v > 0 ? 4 : 0)}%;min-height:${v > 0 ? '4px' : '0'};" title="${diaNum}/${_mes}: ${v} atendimentos"></div>
       <div class="bar-label">${diaNum}</div>
     </div>`;
   }).join('');
