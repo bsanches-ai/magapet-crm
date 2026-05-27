@@ -1781,9 +1781,10 @@ function filtrarAgenda(val) {
         // Monta cards simples com data visível
         document.getElementById('cardsGrid').innerHTML = filtrados.map(a => {
           const data_hora = a.data_hora || '';
-          const d = data_hora ? new Date(new Date(data_hora).getTime() - 3*60*60*1000) : null;
-          const dataStr = d ? d.toLocaleDateString('pt-BR', {weekday:'short', day:'2-digit', month:'2-digit'}) : '';
-          const hora = d ? String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') : '';
+          const d = data_hora ? new Date(data_hora) : null;
+          const dBrasilia = d ? new Date(d.getTime() - 3*60*60*1000) : null;
+          const dataStr = dBrasilia ? dBrasilia.toLocaleDateString('pt-BR', {weekday:'short', day:'2-digit', month:'2-digit'}) : '';
+          const hora = dBrasilia ? String(dBrasilia.getUTCHours()).padStart(2,'0') + ':' + String(dBrasilia.getUTCMinutes()).padStart(2,'0') : '';
           const petNome = a.pets?.nome || a.pet_nome || '';
           const tutorNome = a.clientes?.nome || a.tutor_nome || '';
           const servico = a.tenant_servicos?.nome || a.servico || '';
