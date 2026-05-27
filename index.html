@@ -3275,6 +3275,30 @@ function filtrarClientes(val) {
 
 let clienteAtualFicha = null;
 
+function abrirBloqueioCliente(clienteId, telefone, nome) {
+  const motivo = prompt(`Motivo do bloqueio de ${nome}:`);
+  if (!motivo || !motivo.trim()) return;
+  bloquearClienteDireto(clienteId, telefone, motivo);
+}
+
+async function bloquearClienteDireto(clienteId, telefone, motivo) {
+  try {
+    await fetch(`${N8N_ATENDIMENTO}/bloquear`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: TENANT_ID, agendamento_id: null, motivo, tutor_telefone: telefone, cliente_id: clienteId })
+    });
+  } catch {}
+  // Atualiza localmente
+  const idx = todosClientes.findIndex(c => c.id === clienteId);
+  if (idx >= 0) todosClientes[idx].bloqueado = true;
+  if (clienteAtualFicha && clienteAtualFicha.id === clienteId) clienteAtualFicha.bloqueado = true;
+  clientesBloqueados.add(telefone);
+  clientesBloqueados.add(String(telefone).replace(/\D/g, ''));
+  showToast('Cliente bloqueado ✓', 'success');
+  abrirFicha(clienteAtualFicha);
+}
+
 async function desbloquearCliente(clienteId, telefone) {
   if (!confirm('Desbloquear este cliente para atendimento?')) return;
   try {
@@ -3318,7 +3342,7 @@ function abrirFicha(cliente) {
       <div style="display:flex;gap:8px;margin-left:auto;">
         <button class="btn btn-adicional" onclick="editarTutor(clienteAtualFicha)">✏️ Editar</button>
         <button class="btn btn-whatsapp" onclick="abrirWhatsApp('${cliente.telefone}')">💬 WhatsApp</button>
-        ${(() => { const tl = String(cliente.telefone||'').replace(/\D/g,''); const bloq = cliente.bloqueado || clientesBloqueados.has(cliente.telefone) || clientesBloqueados.has(tl); return bloq ? `<button class="btn" style="background:#fef0ee;color:#d95f52;border:1px solid #d95f52;" onclick="desbloquearCliente('${cliente.id}','${cliente.telefone}')">🔓 Desbloquear</button>` : ''; })()}
+        ${(() => { const tl = String(cliente.telefone||'').replace(/\D/g,''); const bloq = cliente.bloqueado || clientesBloqueados.has(cliente.telefone) || clientesBloqueados.has(tl); return bloq ? `<button class="btn" style="background:#fef0ee;color:#d95f52;border:1px solid #d95f52;" onclick="desbloquearCliente('${cliente.id}','${cliente.telefone}')">🔓 Desbloquear</button>` : `<button class="btn" style="background:#fef0ee;color:#d95f52;border:1px solid #d95f52;" onclick="abrirBloqueioCliente('${cliente.id}','${cliente.telefone}','${cliente.nome}')">🚫 Bloquear</button>`; })()}
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
