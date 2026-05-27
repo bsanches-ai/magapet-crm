@@ -1827,9 +1827,14 @@ const entregueBtn = statusReal === 'pronto'
             ${ag.adicionais?.length ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">
               ${ag.adicionais.map(a => {
                 const nome = typeof a === 'string' ? a : a.nome;
-                const preco = typeof a === 'object' ? (a.preco || 0) : (ADICIONAL_PRECOS[nome] || 0);
-                return `<span style="font-size:11px;background:#eef4ff;color:#2a5ca8;border:1px solid #c0d8f8;border-radius:12px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px;">
-                  + ${nome} (${formatMoney(preco)}) <span style="cursor:pointer;color:#d95f52;font-weight:700;margin-left:2px;" onclick="event.stopPropagation();removerAdicional('${ag.id}','${nome}',${preco})">✕</span>
+                const precoOriginal = typeof a === 'object' ? (a.preco || 0) : (ADICIONAL_PRECOS[nome] || 0);
+                // Se tem saldo de tosa higiênica no pacote, mostra R$ 0 para tosa higiênica
+                const eTosaHig = nome?.toLowerCase().includes('higiênica') || nome?.toLowerCase().includes('higienica');
+                const cobertoPacote = eTosaHig && ag.saldo_pacote > 0 && ag.saldo_tosa_higienica > 0;
+                const preco = cobertoPacote ? 0 : precoOriginal;
+                const labelPreco = cobertoPacote ? '<span style="color:var(--green);font-size:10px;">✓ pacote</span>' : formatMoney(preco);
+                return `<span style="font-size:11px;background:${cobertoPacote ? 'rgba(76,175,125,0.1)' : '#eef4ff'};color:${cobertoPacote ? 'var(--green)' : '#2a5ca8'};border:1px solid ${cobertoPacote ? 'rgba(76,175,125,0.3)' : '#c0d8f8'};border-radius:12px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px;">
+                  + ${nome} (${labelPreco}) <span style="cursor:pointer;color:#d95f52;font-weight:700;margin-left:2px;" onclick="event.stopPropagation();removerAdicional('${ag.id}','${nome}',${precoOriginal})">✕</span>
                 </span>`;
               }).join('')}
             </div>` : ''}
@@ -1856,7 +1861,15 @@ const entregueBtn = statusReal === 'pronto'
                 })()}
               </div>`
             : ag.saldo_pacote
-              ? `<span class="service-value" style="color:var(--green);">${formatMoney(Math.max(0, (ag.adicionais_valor || 0) - (ag.desconto || 0)))}</span>`
+              ? `<span class="service-value" style="color:var(--green);">${(() => {
+                  // Desconta tosa higiênica se coberta pelo pacote
+                  let val = ag.adicionais_valor || 0;
+                  if (ag.saldo_tosa_higienica > 0) {
+                    const tosaHig = ag.adicionais?.find(a => { const n = typeof a === 'string' ? a : a.nome; return n?.toLowerCase().includes('higiênica') || n?.toLowerCase().includes('higienica'); });
+                    if (tosaHig) val = Math.max(0, val - (typeof tosaHig === 'object' ? tosaHig.preco || 0 : 0));
+                  }
+                  return formatMoney(Math.max(0, val - (ag.desconto || 0)));
+                })()}</span>`
               : `<span class="service-value">${formatMoney(valorTotal - (ag.desconto || 0))}</span>`
           }
           <button onclick="toggleVoucher('${ag.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--muted);padding:2px 4px;border-radius:4px;transition:color 0.2s;" title="Voucher/Desconto" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--muted)'">🏷️</button>
