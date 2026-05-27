@@ -1752,6 +1752,12 @@ function renderAgenda() {
   grid.innerHTML = filtered.map(ag => renderCard(ag)).join('');
 }
 
+function _eTosaHigienicaComum(nome) {
+  if (!nome) return false;
+  const n = nome.toLowerCase();
+  return (n.includes('higiênica') || n.includes('higienica')) && n.includes('comum');
+}
+
 function _isTutorBloqueado(telefone) {
   var tl = String(telefone || '').replace(/\D/g, '');
   return clientesBloqueados.has(telefone) ||
@@ -1829,7 +1835,7 @@ const entregueBtn = statusReal === 'pronto'
                 const nome = typeof a === 'string' ? a : a.nome;
                 const precoOriginal = typeof a === 'object' ? (a.preco || 0) : (ADICIONAL_PRECOS[nome] || 0);
                 // Se tem saldo de tosa higiênica no pacote, mostra R$ 0 para tosa higiênica
-                const eTosaHig = nome?.toLowerCase().includes('higiênica') || nome?.toLowerCase().includes('higienica');
+                const eTosaHig = _eTosaHigienicaComum(nome);
                 const cobertoPacote = eTosaHig && ag.saldo_pacote > 0 && ag.saldo_tosa_higienica > 0;
                 const preco = cobertoPacote ? 0 : precoOriginal;
                 const labelPreco = cobertoPacote ? '<span style="color:var(--green);font-size:10px;">✓ pacote</span>' : formatMoney(preco);
@@ -1865,7 +1871,7 @@ const entregueBtn = statusReal === 'pronto'
                   // Desconta tosa higiênica se coberta pelo pacote
                   let val = ag.adicionais_valor || 0;
                   if (ag.saldo_tosa_higienica > 0) {
-                    const tosaHig = ag.adicionais?.find(a => { const n = typeof a === 'string' ? a : a.nome; return n?.toLowerCase().includes('higiênica') || n?.toLowerCase().includes('higienica'); });
+                    const tosaHig = ag.adicionais?.find(a => { const n = typeof a === 'string' ? a : a.nome; return _eTosaHigienicaComum(n); });
                     if (tosaHig) val = Math.max(0, val - (typeof tosaHig === 'object' ? tosaHig.preco || 0 : 0));
                   }
                   return formatMoney(Math.max(0, val - (ag.desconto || 0)));
@@ -2588,7 +2594,7 @@ async function marcarEntregue(id, usouPacote = false) {
     if (ag.saldo_tosa_higienica > 0) {
       const adicionalTosaHig = ag.adicionais?.find(a => {
         const nome = typeof a === 'string' ? a : a.nome;
-        return nome?.toLowerCase().includes('higiênica') || nome?.toLowerCase().includes('higienica');
+        return _eTosaHigienicaComum(nome);
       });
       if (adicionalTosaHig) {
         const precoTosaHig = typeof adicionalTosaHig === 'object' ? (adicionalTosaHig.preco || 0) : 0;
@@ -2632,7 +2638,7 @@ function abrirConfirmacaoPacote(id) {
 
   const temTosaHigienica = ag.adicionais?.some(a => {
     const nome = typeof a === 'string' ? a : a.nome;
-    return nome?.toLowerCase().includes('higiênica') || nome?.toLowerCase().includes('higienica');
+    return _eTosaHigienicaComum(nome);
   });
 
   const valorBanho = ag.valor || 0;
@@ -2643,7 +2649,7 @@ function abrirConfirmacaoPacote(id) {
   if (temTosaHigienica && ag.saldo_tosa_higienica > 0) {
     const adicionalTosaHig = ag.adicionais?.find(a => {
       const nome = typeof a === 'string' ? a : a.nome;
-      return nome?.toLowerCase().includes('higiênica') || nome?.toLowerCase().includes('higienica');
+      return _eTosaHigienicaComum(nome);
     });
     precoTosaHig = typeof adicionalTosaHig === 'object' ? (adicionalTosaHig.preco || 0) : 0;
   }
@@ -2652,7 +2658,7 @@ function abrirConfirmacaoPacote(id) {
   const valorComPacote = Math.max(0, valorAdicionais - precoTosaHig - valorDesconto);
 
   const tosaDisp = ag.saldo_tosa_higienica > 0;
-  const temTosaNoAdic = ag.adicionais?.some(a => { const n = typeof a === 'string' ? a : a.nome; return n?.toLowerCase().includes('higiênica') || n?.toLowerCase().includes('higienica'); });
+  const temTosaNoAdic = ag.adicionais?.some(a => { const n = typeof a === 'string' ? a : a.nome; return _eTosaHigienicaComum(n); });
   const saldoInfo = `Saldo: ${ag.saldo_pacote} banho${ag.saldo_pacote > 1 ? 's' : ''}${tosaDisp ? ` + ${ag.saldo_tosa_higienica} tosa higiênica` : ''}`;
   const tosaMsg = tosaDisp && temTosaNoAdic ? '\n✂️ Tosa higiênica coberta pelo pacote' : '';
   const msg = `🎟️ Cliente tem pacote ativo\n${saldoInfo}\n\nSem pacote: ${formatMoney(valorSemPacote)}\nCom pacote: ${formatMoney(valorComPacote)}${tosaMsg}\n\nUsar pacote?`;
