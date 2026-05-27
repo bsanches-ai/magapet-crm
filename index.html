@@ -1240,6 +1240,11 @@
     </div>
 
     <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Valor pago (R$)</label>
+      <input class="modal-input" type="number" id="pacote-valor" placeholder="260" value="260" min="0" step="1" style="margin:0;">
+    </div>
+
+    <div class="form-group" style="margin-bottom:12px;">
       <label class="form-label">Forma de pagamento</label>
       <select class="modal-input" id="pacote-pagamento" style="margin:0;">
         <option value="Pix">Pix</option>
@@ -1782,9 +1787,11 @@ function filtrarAgenda(val) {
           const petNome = a.pets?.nome || a.pet_nome || '';
           const tutorNome = a.clientes?.nome || a.tutor_nome || '';
           const servico = a.tenant_servicos?.nome || a.servico || '';
+          const statusColors = { aguardando: '#5b9bd5', atendendo: '#e8903a', pronto: '#4caf7d', entregue: '#aab4cc', cancelado: '#d95f52' };
           const statusLabels = { aguardando: '🔵 Aguardando', atendendo: '🟠 Atendendo', pronto: '🟢 Pronto', entregue: '⚫ Entregue' };
           const statusLabel = statusLabels[a.status] || a.status;
-          return `<div class="apt-card status-${a.status}" style="cursor:default;">
+          const borderColor = statusColors[a.status] || '#5b9bd5';
+          return `<div class="apt-card" style="border-left:4px solid ${borderColor};cursor:default;">
             <div class="card-header">
               <div class="card-time">${hora} <span style="font-size:13px;color:var(--muted);font-family:'DM Sans',sans-serif;">${dataStr}</span></div>
               <div class="card-status-badge badge-${a.status}">${statusLabel}</div>
@@ -3775,12 +3782,13 @@ async function confirmarPacote() {
   const clienteId = document.getElementById('pacote-cliente-id').value;
   const pagamento = document.getElementById('pacote-pagamento').value;
   const dataAdesao = document.getElementById('pacote-data').value;
+  const valorPacote = parseFloat(document.getElementById('pacote-valor')?.value) || 260;
 
   try {
     await fetch(`${N8N_CADASTRO}/pacote`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: TENANT_ID, cliente_id: clienteId, valor: 260, forma_pagamento: pagamento, data_adesao: dataAdesao, saldo_banhos: 4, saldo_tosas: 1 }),
+      body: JSON.stringify({ tenant_id: TENANT_ID, cliente_id: clienteId, valor: valorPacote, forma_pagamento: pagamento, data_adesao: dataAdesao, saldo_banhos: 4, saldo_tosas: 1 }),
       signal: undefined
     });
   } catch {}
