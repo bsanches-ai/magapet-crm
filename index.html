@@ -799,6 +799,9 @@
         <div class="filter-chip" data-status="cancelado" onclick="filterStatus('cancelado', this)">🔴 Cancelado <span class="filter-count" id="fc-cancelado">0</span></div>
       </div>
 
+      <div style="max-width:400px;margin-bottom:16px;">
+        <input class="form-input" type="text" placeholder="🔍 Buscar pet, tutor ou serviço..." id="searchAgenda" oninput="filtrarAgenda(this.value)" style="background:#ffffff;">
+      </div>
       <div class="cards-grid" id="cardsGrid">
         <div class="empty-state">
           <div class="empty-icon">🐾</div>
@@ -1435,6 +1438,7 @@ let selectedAdicional = null;
 let clienteAtual = null;
 
 let clientesBloqueados = new Set(); // telefones bloqueados (sem formatação e com)
+let _searchAgendaQuery = ''; // FIX: busca na agenda
 let bloqueadoConfirmado = false; // FIX-7: usuário confirmou prosseguir com bloqueado
 
 // Config do tenant (carregada do banco)
@@ -1732,6 +1736,11 @@ async function loadAgenda() {
   loadNotifications();
 }
 
+function filtrarAgenda(val) {
+  _searchAgendaQuery = (val || '').toLowerCase().trim();
+  renderAgenda();
+}
+
 function renderAgenda() {
   const grid = document.getElementById('cardsGrid');
   const snorm = { confirmado: 'aguardando', aguardando: 'aguardando', atendendo: 'atendendo', pronto: 'pronto', entregue: 'entregue', cancelado: 'cancelado' };
@@ -1741,6 +1750,13 @@ function renderAgenda() {
       const s = snorm[a.status] || 'aguardando';
       if (activeFilters.has('todos')) return s !== 'cancelado';
       return activeFilters.has(s);
+    })
+    .filter(a => {
+      if (!_searchAgendaQuery) return true;
+      const q = _searchAgendaQuery;
+      return (a.pet_nome || '').toLowerCase().includes(q) ||
+             (a.tutor_nome || '').toLowerCase().includes(q) ||
+             (a.servico || '').toLowerCase().includes(q);
     })
     .sort((a, b) => a.hora.localeCompare(b.hora));
 
@@ -3399,8 +3415,9 @@ function infoRow(label, valor) {
 
 function abrirFichaPet(pet, tutorNome) {
   // Monta histórico a partir dos agendamentos entregues do pet (vem do Supabase)
+  const statusLabel = { aguardando: '🔵', atendendo: '🟠', pronto: '🟢', entregue: '⚫', cancelado: '🔴' };
   const ags = (pet.agendamentos || [])
-    .filter(a => a.status === 'entregue')
+    .filter(a => a.status !== 'cancelado')
     .sort((a, b) => b.data_hora.localeCompare(a.data_hora));
 
   const historico = ags.length
@@ -3408,8 +3425,10 @@ function abrirFichaPet(pet, tutorNome) {
         const data = new Date(new Date(a.data_hora).getTime() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
         const servico = a.tenant_servicos?.nome || '—';
         const valor = a.valor_total ? formatMoney(a.valor_total) : '';
-        return `<div class="history-item">
-          <span>${servico}</span>
+        const badge = statusLabel[a.status] || '🔵';
+        const isPendente = a.status !== 'entregue';
+        return `<div class="history-item" style="${isPendente ? 'background:rgba(126,184,247,0.05);border-radius:6px;padding:4px 6px;' : ''}">
+          <span>${badge} ${servico}${isPendente ? ' <span style="font-size:10px;color:var(--blue);font-weight:600;">pendente</span>' : ''}</span>
           <span class="history-date">${data}${valor ? ' · ' + valor : ''}</span>
         </div>`;
       }).join('')
