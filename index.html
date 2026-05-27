@@ -3744,12 +3744,16 @@ async function salvarNovoPet() {
     });
     if (res.ok) {
       const r = await res.json();
-      dados.id = r.id || crypto.randomUUID();
+      console.log('novo-pet response:', JSON.stringify(r));
+      dados.id = r?.[0]?.id || r?.id || null;
+      if (!dados.id) console.warn('pet_id nao retornado pelo backend');
     } else {
-      dados.id = crypto.randomUUID();
+      console.warn('novo-pet erro:', res.status);
+      dados.id = null;
     }
-  } catch {
-    dados.id = crypto.randomUUID();
+  } catch (e) {
+    console.warn('novo-pet exception:', e.message);
+    dados.id = null;
   }
 
   // Envia mensagens WhatsApp pedindo dados do pet
