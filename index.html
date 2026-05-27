@@ -1736,9 +1736,80 @@ async function loadAgenda() {
   loadNotifications();
 }
 
+let _filtrarAgendaTimeout = null;
+
 function filtrarAgenda(val) {
   _searchAgendaQuery = (val || '').toLowerCase().trim();
-  renderAgenda();
+  clearTimeout(_filtrarAgendaTimeout);
+
+  if (!_searchAgendaQuery) {
+    // Sem busca — volta para o dia atual
+    document.getElementById('cardsGrid').innerHTML = '';
+    renderAgenda();
+    return;
+  }
+
+  // Mostra loading
+  document.getElementById('cardsGrid').innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Buscando...</div></div>';
+
+  _filtrarAgendaTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(`${N8N_LEITURA}/buscar-agenda?tenant_id=${TENANT_ID}&q=${encodeURIComponent(_searchAgendaQuery)}`);
+      if (res.ok) {
+        const raw = await res.json();
+        const lista = (Array.isArray(raw) ? raw : []).filter(a => !a._empty);
+        if (!lista.length) {
+          document.getElementById('cardsGrid').innerHTML = '<div class="empty-state"><div class="empty-icon">🐾</div><div class="empty-text">Nenhum agendamento encontrado</div></div>';
+          return;
+        }
+        // Filtra localmente pelo query
+        const q = _searchAgendaQuery;
+        const filtrados = lista.filter(a =>
+          (a.pets?.nome || a.pet_nome || '').toLowerCase().includes(q) ||
+          (a.clientes?.nome || a.tutor_nome || '').toLowerCase().includes(q) ||
+          (a.tenant_servicos?.nome || a.servico || '').toLowerCase().includes(q)
+        );
+        if (!filtrados.length) {
+          document.getElementById('cardsGrid').innerHTML = '<div class="empty-state"><div class="empty-icon">🐾</div><div class="empty-text">Nenhum agendamento encontrado</div></div>';
+          return;
+        }
+        // Monta cards simples com data visível
+        document.getElementById('cardsGrid').innerHTML = filtrados.map(a => {
+          const data_hora = a.data_hora || '';
+          const d = data_hora ? new Date(new Date(data_hora).getTime() - 3*60*60*1000) : null;
+          const dataStr = d ? d.toLocaleDateString('pt-BR', {weekday:'short', day:'2-digit', month:'2-digit'}) : '';
+          const hora = d ? String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') : '';
+          const petNome = a.pets?.nome || a.pet_nome || '';
+          const tutorNome = a.clientes?.nome || a.tutor_nome || '';
+          const servico = a.tenant_servicos?.nome || a.servico || '';
+          const statusLabels = { aguardando: '🔵 Aguardando', atendendo: '🟠 Atendendo', pronto: '🟢 Pronto', entregue: '⚫ Entregue' };
+          const statusLabel = statusLabels[a.status] || a.status;
+          return `<div class="apt-card status-${a.status}" style="cursor:default;">
+            <div class="card-header">
+              <div class="card-time">${hora} <span style="font-size:13px;color:var(--muted);font-family:'DM Sans',sans-serif;">${dataStr}</span></div>
+              <div class="card-status-badge badge-${a.status}">${statusLabel}</div>
+            </div>
+            <div class="card-pet">
+              <div class="pet-avatar">🐶</div>
+              <div>
+                <div class="pet-name">${petNome}</div>
+                <div class="pet-breed">${servico}</div>
+              </div>
+            </div>
+            <div class="card-tutor">
+              <div class="tutor-info">
+                <span style="font-size:14px">👤</span>
+                <div class="tutor-name">${tutorNome}</div>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    } catch(e) {
+      // Fallback local
+      renderAgenda();
+    }
+  }, 400);
 }
 
 function renderAgenda() {
@@ -1832,7 +1903,7 @@ const entregueBtn = statusReal === 'pronto'
   return `
     <div class="apt-card status-${statusReal}" id="card-${ag.id}">
       <div class="card-header">
-        <div class="card-time">${ag.hora}</div>
+        <div class="card-time">${ag.hora}${_searchAgendaQuery ? ` <span style="font-size:12px;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:500;">${ag.data_hora ? new Date(new Date(ag.data_hora).getTime() - 3*60*60*1000).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'}) : ''}</span>` : ''}</div>
         <div class="card-status-badge ${statusBadges[statusReal]}">${statusLabels[statusReal]}</div>
       </div>
       <div class="card-pet">
