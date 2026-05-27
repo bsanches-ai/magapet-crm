@@ -2820,9 +2820,12 @@ function _onSelectClienteEncaixe(i) {
   const telLimpo = String(c.telefone || '').replace(/\D/g, '');
   const isBloq = c.bloqueado || clientesBloqueados.has(c.telefone) || clientesBloqueados.has(telLimpo);
   if (isBloq) {
-    document.getElementById('searchResults').innerHTML = `<div class="bloqueado-aviso-encaixe">
-      <span>🚫 <strong>${c.nome}</strong> está bloqueado(a). Deseja prosseguir mesmo assim?</span>
-      <button onclick="selectClienteBloqueadoConfirmado(${i})">Sim, prosseguir</button>
+    document.getElementById('searchResults').innerHTML = `<div class="bloqueado-aviso-encaixe" style="flex-direction:column;align-items:flex-start;gap:10px;">
+      <div style="font-size:13px;">🚫 <strong>${c.nome}</strong> está bloqueado(a) para atendimento.</div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="selectClienteBloqueadoConfirmado(${i})" style="background:#d95f52;">Sim, agendar mesmo assim</button>
+        <button onclick="document.getElementById('searchResults').innerHTML='';document.getElementById('searchClient').value='';" style="background:#5a6275;">Não, cancelar</button>
+      </div>
     </div>`;
     return;
   }
