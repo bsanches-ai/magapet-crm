@@ -1739,6 +1739,10 @@ async function loadAgenda() {
   renderAgenda();
   updateSummary();
   loadNotifications();
+  setInterval(() => {
+    const hora = new Date().getHours();
+    if (hora >= 8 && hora < 18) loadNotifications();
+  }, 1800000); // 30 minutos, horário comercial
 }
 
 let _filtrarAgendaTimeout = null;
