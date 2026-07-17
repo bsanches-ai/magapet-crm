@@ -1910,11 +1910,8 @@ function renderCard(ag) {
     ? `<button class="btn" style="background:#fff3e8;color:#c47020;border:1px solid #e8903a;font-weight:600;" onclick="marcarAtendendo('${ag.id}')">✂️ Atender</button>` : '';
   const prontoBtn = statusReal === 'atendendo'
     ? `<button class="btn btn-pronto" onclick="marcarPronto('${ag.id}')">✓ Pronto</button>` : '';
-const temPacote = ag.saldo_pacote > 0;
 const entregueBtn = statusReal === 'pronto'
-    ? temPacote
-        ? `<button class="btn btn-entregue" onclick="abrirConfirmacaoPacote('${ag.id}')">🏠 Entregue</button>`
-        : `<button class="btn btn-entregue" onclick="marcarEntregue('${ag.id}', false)">🏠 Entregue</button>`
+    ? `<button class="btn btn-entregue" onclick="checarEntregue('${ag.id}')">🏠 Entregue</button>`
     : '';
   
   const historico = ag.historico?.length
@@ -2696,29 +2693,9 @@ async function marcarEntregue(id, usouPacote = false) {
   const ag = agendamentos.find(a => a.id === id);
   if (!ag) return;
 
-  // Calcula valor a cobrar
-  let valorServico = ag.valor || 0;
+  let valorServico = usouPacote ? 0 : (ag.valor || 0);
   let valorAdicionais = ag.adicionais_valor || 0;
   let valorDesconto = ag.desconto || 0;
-  let usouTosaHigienica = false;
-
-  if (usouPacote && ag.saldo_pacote > 0) {
-    // Banho coberto pelo pacote
-    valorServico = 0;
-    // Verifica se tem tosa higiênica nos adicionais E se ainda tem saldo disponível
-    if (ag.saldo_tosa_higienica > 0) {
-      const adicionalTosaHig = ag.adicionais?.find(a => {
-        const nome = typeof a === 'string' ? a : a.nome;
-        return _eTosaHigienicaComum(nome);
-      });
-      if (adicionalTosaHig) {
-        const precoTosaHig = typeof adicionalTosaHig === 'object' ? (adicionalTosaHig.preco || 0) : 0;
-        valorAdicionais = Math.max(0, valorAdicionais - precoTosaHig);
-        usouTosaHigienica = true;
-      }
-    }
-  }
-
   const valorTotal = Math.max(0, valorServico + valorAdicionais - valorDesconto);
 
   try {
@@ -2732,9 +2709,7 @@ async function marcarEntregue(id, usouPacote = false) {
         pet_nome: ag.pet_nome,
         pet_sexo: ag.pet_sexo,
         tutor_telefone: ag.tutor_telefone,
-        saldo_pacote: ag.saldo_pacote,
         usou_pacote: usouPacote,
-        usou_tosa_higienica: usouTosaHigienica,
         google_link: GOOGLE_LINK_CONFIG,
         instagram: INSTAGRAM_CONFIG,
         valor_total: valorTotal
@@ -2747,41 +2722,90 @@ async function marcarEntregue(id, usouPacote = false) {
   updateSummary();
 }
 
-function abrirConfirmacaoPacote(id) {
+async function checarEntregue(id) {
   const ag = agendamentos.find(a => a.id === id);
-  if (!ag) return;
+  if (!ag || !ag.cliente_id || !ag.servico_id) { marcarEntregue(id); return; }
 
-  const temTosaHigienica = ag.adicionais?.some(a => {
-    const nome = typeof a === 'string' ? a : a.nome;
-    return _eTosaHigienicaComum(nome);
-  });
+  try {
+    const petPorte = (ag.pet_porte || '').toUpperCase();
+    // PP pode usar saldo de pacote P (mesmo preço)
+    const portesAceitos = petPorte === 'PP' ? ['PP', 'P', ''] : [petPorte, ''];
 
-  const valorBanho = ag.valor || 0;
-  const valorAdicionais = ag.adicionais_valor || 0;
-  const valorDesconto = ag.desconto || 0;
+    const pacotes = await sbGet('cliente_pacotes',
+      `cliente_id=eq.${ag.cliente_id}&ativo=eq.true&select=id,saldos,porte`
+    );
 
-  let precoTosaHig = 0;
-  if (temTosaHigienica && ag.saldo_tosa_higienica > 0) {
-    const adicionalTosaHig = ag.adicionais?.find(a => {
-      const nome = typeof a === 'string' ? a : a.nome;
-      return _eTosaHigienicaComum(nome);
-    });
-    precoTosaHig = typeof adicionalTosaHig === 'object' ? (adicionalTosaHig.preco || 0) : 0;
-  }
+    let pacoteEncontrado = null;
+    let entryEncontrada = null;
 
-  const valorSemPacote = Math.max(0, valorBanho + valorAdicionais - valorDesconto);
-  const valorComPacote = Math.max(0, valorAdicionais - precoTosaHig - valorDesconto);
+    for (const pac of (pacotes || [])) {
+      const porte = (pac.porte || '').toUpperCase();
+      if (!portesAceitos.includes(porte)) continue;
+      const saldos = pac.saldos || {};
+      const raw = saldos[ag.servico_id];
+      if (!raw) continue;
+      const restante = typeof raw === 'object' ? raw.restante : raw;
+      if (restante > 0) {
+        pacoteEncontrado = pac;
+        entryEncontrada = typeof raw === 'object' ? raw : { nome: ag.servico, restante: raw, quantidade: raw, preco_unit: 0 };
+        break;
+      }
+    }
 
-  const tosaDisp = ag.saldo_tosa_higienica > 0;
-  const temTosaNoAdic = ag.adicionais?.some(a => { const n = typeof a === 'string' ? a : a.nome; return _eTosaHigienicaComum(n); });
-  const saldoInfo = `Saldo: ${ag.saldo_pacote} banho${ag.saldo_pacote > 1 ? 's' : ''}${tosaDisp ? ` + ${ag.saldo_tosa_higienica} tosa higiênica` : ''}`;
-  const tosaMsg = tosaDisp && temTosaNoAdic ? '\n✂️ Tosa higiênica coberta pelo pacote' : '';
-  const msg = `🎟️ Cliente tem pacote ativo\n${saldoInfo}\n\nSem pacote: ${formatMoney(valorSemPacote)}\nCom pacote: ${formatMoney(valorComPacote)}${tosaMsg}\n\nUsar pacote?`;
+    if (!pacoteEncontrado) { marcarEntregue(id); return; }
 
-  if (confirm(msg)) {
-    marcarEntregue(id, true);
-  } else {
+    const valorServico = ag.valor || 0;
+    const restante = entryEncontrada.restante;
+    const msg = `🎟️ Pacote disponível!\n\n${entryEncontrada.nome}: ${restante} sessão${restante > 1 ? 'ões' : ''} restante${restante > 1 ? 's' : ''}\n\nSem pacote: ${formatMoney(valorServico)}\nCom pacote: ${formatMoney(0)}\n\nUsar saldo do pacote?`;
+
+    if (confirm(msg)) {
+      await _debitarPacoteEntrega(ag, pacoteEncontrado, entryEncontrada);
+    } else {
+      marcarEntregue(id, false);
+    }
+  } catch(e) {
     marcarEntregue(id, false);
+  }
+}
+
+async function _debitarPacoteEntrega(ag, pacote, entry) {
+  try {
+    const saldos = JSON.parse(JSON.stringify(pacote.saldos || {}));
+    const raw = saldos[ag.servico_id];
+    if (typeof raw === 'object') {
+      saldos[ag.servico_id] = { ...raw, restante: Math.max(0, raw.restante - 1) };
+    } else {
+      saldos[ag.servico_id] = Math.max(0, (raw || 0) - 1);
+    }
+
+    const todosZerados = Object.values(saldos).every(v =>
+      (typeof v === 'object' ? v.restante : v) <= 0
+    );
+
+    await sbPatch('cliente_pacotes', `id=eq.${pacote.id}`, {
+      saldos,
+      ...(todosZerados ? { ativo: false } : {})
+    });
+
+    await sbPost('historico_uso_pacotes', {
+      tenant_id: TENANT_ID,
+      cliente_pacote_id: pacote.id,
+      servico_id: ag.servico_id,
+      servico_nome: entry.nome || ag.servico,
+      agendamento_id: ag.id,
+      quantidade: 1,
+      porte_usado: ag.pet_porte || null
+    });
+
+    await sbPatch('agendamentos', `id=eq.${ag.id}`, {
+      usou_pacote: true,
+      pacote_id: pacote.id
+    });
+
+    marcarEntregue(ag.id, true);
+  } catch(e) {
+    showToast('Erro ao debitar pacote', 'error');
+    marcarEntregue(ag.id, false);
   }
 }
 
@@ -3505,10 +3529,20 @@ async function carregarPacotesNaFicha(clienteId) {
   if (!el) return;
   try {
     const pacotes = await sbGet('cliente_pacotes',
-      `cliente_id=eq.${clienteId}&ativo=eq.true&select=id,saldos,saldo_banhos,saldo_tosas_higienicas,data_adesao,data_expiracao,valor_pago,forma_pagamento,pacotes(nome)&order=criado_em.desc`
+      `cliente_id=eq.${clienteId}&select=id,saldos,porte,saldo_banhos,saldo_tosas_higienicas,data_adesao,data_expiracao,valor_pago,forma_pagamento,ativo,pacotes(nome)&order=criado_em.desc&limit=10`
     );
     if (!pacotes || !pacotes.length) { el.innerHTML = ''; return; }
-    el.innerHTML = pacotes.map(p => {
+
+    const pacotesAtivos = pacotes.filter(p => p.ativo);
+    const pacotesEncerrados = pacotes.filter(p => !p.ativo);
+    const pacoteIds = pacotes.map(p => p.id);
+
+    // Carregar histórico de uso
+    const historico = await sbGet('historico_uso_pacotes',
+      `cliente_pacote_id=in.(${pacoteIds.join(',')})&select=servico_nome,porte_usado,quantidade,criado_em&order=criado_em.desc&limit=20`
+    );
+
+    function renderPacoteCard(p) {
       const tmpl = p.pacotes || {};
       const saldos = p.saldos || {};
       const entries = Object.entries(saldos);
@@ -3529,14 +3563,40 @@ async function carregarPacotesNaFicha(clienteId) {
         saldoRows = `<div style="font-size:12px;color:var(--green);">🛁 ${p.saldo_banhos} banhos &nbsp;·&nbsp; ✂️ ${p.saldo_tosas_higienicas || 0} tosa higiênica</div>`;
       }
       const dataExp = p.data_expiracao ? new Date(p.data_expiracao).toLocaleDateString('pt-BR') : '—';
-      return `<div style="background:rgba(76,175,125,0.05);border:1px solid rgba(76,175,125,0.2);border-radius:10px;padding:12px;margin-bottom:8px;">
+      const porteTag = p.porte ? ` <span style="font-size:10px;background:rgba(126,184,247,0.15);color:var(--blue);padding:1px 6px;border-radius:8px;font-weight:600;">${p.porte}</span>` : '';
+      const bgStyle = p.ativo
+        ? 'background:rgba(76,175,125,0.05);border:1px solid rgba(76,175,125,0.2);'
+        : 'background:rgba(0,0,0,0.02);border:1px solid var(--border);opacity:0.6;';
+      return `<div style="${bgStyle}border-radius:10px;padding:12px;margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div style="font-size:13px;font-weight:600;color:var(--cream);">🎟️ ${tmpl.nome || 'Pacote personalizado'}</div>
-          <div style="font-size:11px;color:var(--muted);">válido até ${dataExp}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--cream);">🎟️ ${tmpl.nome || 'Pacote personalizado'}${porteTag}</div>
+          <div style="font-size:11px;color:var(--muted);">${p.ativo ? 'válido até ' : 'encerrado · '}${dataExp}</div>
         </div>
         ${saldoRows}
       </div>`;
-    }).join('');
+    }
+
+    let html = '';
+    if (pacotesAtivos.length) html += pacotesAtivos.map(renderPacoteCard).join('');
+    if (pacotesEncerrados.length) {
+      html += `<div style="font-size:11px;color:var(--muted);margin:8px 0 4px;">Encerrados</div>`;
+      html += pacotesEncerrados.map(renderPacoteCard).join('');
+    }
+
+    // Histórico de uso
+    if (historico && historico.length) {
+      html += `<div style="font-size:12px;font-weight:600;color:var(--cream);margin:12px 0 6px;">📋 Histórico de uso</div>`;
+      html += historico.map(h => {
+        const data = new Date(h.criado_em).toLocaleDateString('pt-BR');
+        const porte = h.porte_usado ? ` · ${h.porte_usado}` : '';
+        return `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);color:var(--text);">
+          <span>${h.servico_nome || '—'}${porte}</span>
+          <span style="color:var(--muted);">${data}</span>
+        </div>`;
+      }).join('');
+    }
+
+    el.innerHTML = html;
   } catch(e) { el.innerHTML = ''; }
 }
 
@@ -4004,7 +4064,8 @@ async function confirmarPacote() {
   try {
     await sbPost('cliente_pacotes', {
       tenant_id: TENANT_ID, cliente_id: clienteId,
-      saldos, saldo_banhos: totalBanhos, saldo_tosas_higienicas: totalTosasHig,
+      saldos, porte: porteAtualPacote.toUpperCase(),
+      saldo_banhos: totalBanhos, saldo_tosas_higienicas: totalTosasHig,
       valor_pago: valorPacote, forma_pagamento: pagamento,
       data_adesao: dataAdesao, data_expiracao: dataExp.toISOString().split('T')[0], ativo: true
     });
