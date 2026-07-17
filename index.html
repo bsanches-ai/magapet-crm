@@ -1245,10 +1245,11 @@
         <span style="color:var(--muted);">Total (tabela)</span>
         <span id="pacote-total-tabela" style="font-weight:600;">R$ 0</span>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;">
         <span style="color:var(--green);font-weight:500;">Sugestão (−10%)</span>
         <span id="pacote-sugestao" style="font-weight:700;color:var(--green);">R$ 0</span>
       </div>
+      <div id="pacote-aviso-sem-preco" style="display:none;font-size:11px;color:var(--orange);background:rgba(232,144,58,0.08);border:1px solid rgba(232,144,58,0.25);border-radius:8px;padding:7px 10px;margin-bottom:10px;"></div>
 
       <div class="form-group" style="margin-bottom:12px;">
         <label class="form-label">Valor a cobrar (R$)</label>
@@ -3942,6 +3943,7 @@ function setPortePacote(porte) {
 
 function calcularTotalPacote() {
   let total = 0;
+  const semPreco = [];
   document.querySelectorAll('.pacote-qty').forEach(input => {
     const qty = parseInt(input.value) || 0;
     if (qty <= 0) return;
@@ -3949,10 +3951,20 @@ function calcularTotalPacote() {
     if (!srv) return;
     const preco = getPrecoServico(srv, porteAtualPacote);
     if (preco) total += preco * qty;
+    else semPreco.push(srv.nome);
   });
   const sugestao = Math.round(total * 0.9);
   document.getElementById('pacote-total-tabela').textContent = `R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:0})}`;
   document.getElementById('pacote-sugestao').textContent = `R$ ${sugestao.toLocaleString('pt-BR',{minimumFractionDigits:0})}`;
+
+  const aviso = document.getElementById('pacote-aviso-sem-preco');
+  if (semPreco.length) {
+    aviso.style.display = '';
+    aviso.textContent = `⚠️ Valor não incluso no cálculo (sob avaliação): ${semPreco.join(', ')}`;
+  } else {
+    aviso.style.display = 'none';
+  }
+
   if (!pacoteValorEditado) {
     document.getElementById('pacote-valor').value = sugestao || '';
     document.getElementById('btnConfirmarPacote').textContent = sugestao ? `Confirmar R$ ${sugestao.toLocaleString('pt-BR',{minimumFractionDigits:0})}` : 'Confirmar';
