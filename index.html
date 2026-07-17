@@ -305,6 +305,9 @@
     .tag-taxi { background: rgba(91,155,213,0.15); color: var(--blue); }
     .tag-novo { background: rgba(155,127,212,0.15); color: var(--purple); }
     .tag-pacote { background: rgba(76,175,125,0.15); color: var(--green); }
+    .btn-porte { padding:5px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s; }
+    .btn-porte.active { background:var(--blue);color:#fff;border-color:var(--blue); }
+    .pacote-qty { width:50px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:3px 6px;font-size:13px;background:var(--bg); }
     .tag-pendente { background: rgba(217,95,82,0.15); color: var(--red); }
 
     .card-tutor {
@@ -1223,56 +1226,54 @@
 
 <!-- MODAL ADICIONAR PACOTE -->
 <div class="modal-overlay" id="modalAdicionarPacote">
-  <div class="modal" style="max-width:420px;">
-    <div class="modal-title">🎟️ Adicionar pacote</div>
-    <div class="modal-sub" id="modalPacoteSub">Selecione um pacote para o cliente</div>
+  <div class="modal" style="max-width:500px;max-height:92vh;overflow-y:auto;display:flex;flex-direction:column;gap:0;">
+    <div class="modal-title">🎟️ Novo pacote</div>
+    <div class="modal-sub" id="modalPacoteSub">Selecione os serviços e quantidades</div>
     <input type="hidden" id="pacote-cliente-id">
 
-    <div class="form-group" style="margin-bottom:12px;">
-      <label class="form-label">Pacote</label>
-      <select class="modal-input" id="pacote-template-id" style="margin:0;" onchange="onPacoteTemplateChange()">
-        <option value="">Selecione...</option>
-      </select>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+      <span style="font-size:12px;font-weight:600;color:var(--muted);">Porte:</span>
+      <button class="btn-porte active" data-porte="p" onclick="setPortePacote('p')">P</button>
+      <button class="btn-porte" data-porte="m" onclick="setPortePacote('m')">M</button>
+      <button class="btn-porte" data-porte="g" onclick="setPortePacote('g')">G</button>
     </div>
 
-    <div id="pacote-preview" style="display:none;background:rgba(201,151,58,0.05);border:1px solid rgba(201,151,58,0.2);border-radius:12px;padding:14px;margin-bottom:16px;">
-      <div style="font-size:13px;font-weight:600;color:var(--cream);margin-bottom:6px;" id="pacote-preview-nome"></div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.8;" id="pacote-preview-itens"></div>
-      <div style="font-size:22px;font-family:'Instrument Serif',serif;color:var(--gold);margin-top:10px;" id="pacote-preview-preco"></div>
-    </div>
+    <div id="pacote-servicos-list" style="margin-bottom:4px;"></div>
 
-    <div class="form-group" id="pacote-porte-group" style="margin-bottom:12px;display:none;">
-      <label class="form-label">Porte do pet</label>
-      <select class="modal-input" id="pacote-porte" style="margin:0;" onchange="onPacotePorteChange()">
-        <option value="p">Pequeno (P)</option>
-        <option value="m">Médio (M)</option>
-        <option value="g">Grande (G)</option>
-      </select>
-    </div>
+    <div style="border-top:2px solid var(--border);padding-top:14px;margin-top:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+        <span style="color:var(--muted);">Total (tabela)</span>
+        <span id="pacote-total-tabela" style="font-weight:600;">R$ 0</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:14px;">
+        <span style="color:var(--green);font-weight:500;">Sugestão (−10%)</span>
+        <span id="pacote-sugestao" style="font-weight:700;color:var(--green);">R$ 0</span>
+      </div>
 
-    <div class="form-group" style="margin-bottom:12px;">
-      <label class="form-label">Valor pago (R$)</label>
-      <input class="modal-input" type="number" id="pacote-valor" placeholder="0" min="0" step="1" style="margin:0;" oninput="document.getElementById('btnConfirmarPacote').textContent='Confirmar R$ '+parseFloat(this.value||0).toLocaleString('pt-BR',{minimumFractionDigits:0})">
-    </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">Valor a cobrar (R$)</label>
+        <input class="modal-input" type="number" id="pacote-valor" placeholder="0" min="0" step="1" style="margin:0;font-size:18px;font-weight:700;" oninput="atualizarBtnConfirmar()">
+      </div>
 
-    <div class="form-group" style="margin-bottom:12px;">
-      <label class="form-label">Forma de pagamento</label>
-      <select class="modal-input" id="pacote-pagamento" style="margin:0;">
-        <option value="Pix">Pix</option>
-        <option value="Débito">Débito</option>
-        <option value="Crédito">Crédito</option>
-        <option value="Dinheiro">Dinheiro</option>
-      </select>
-    </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">Forma de pagamento</label>
+        <select class="modal-input" id="pacote-pagamento" style="margin:0;">
+          <option value="Pix">Pix</option>
+          <option value="Débito">Débito</option>
+          <option value="Crédito">Crédito</option>
+          <option value="Dinheiro">Dinheiro</option>
+        </select>
+      </div>
 
-    <div class="form-group" style="margin-bottom:16px;">
-      <label class="form-label">Data de adesão</label>
-      <input class="modal-input" type="date" id="pacote-data" style="margin:0;">
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label">Data de adesão</label>
+        <input class="modal-input" type="date" id="pacote-data" style="margin:0;">
+      </div>
     </div>
 
     <div class="modal-actions">
       <button class="btn-modal-cancel" onclick="closeModal('modalAdicionarPacote')">Cancelar</button>
-      <button class="btn-modal-primary" onclick="confirmarPacote()" id="btnConfirmarPacote" disabled>Confirmar</button>
+      <button class="btn-modal-primary" onclick="confirmarPacote()" id="btnConfirmarPacote">Confirmar</button>
     </div>
   </div>
 </div>
@@ -3503,21 +3504,23 @@ async function carregarPacotesNaFicha(clienteId) {
   if (!el) return;
   try {
     const pacotes = await sbGet('cliente_pacotes',
-      `cliente_id=eq.${clienteId}&ativo=eq.true&select=id,saldos,saldo_banhos,saldo_tosas_higienicas,data_adesao,data_expiracao,valor_pago,forma_pagamento,pacotes(nome,descricao,itens)&order=criado_em.desc`
+      `cliente_id=eq.${clienteId}&ativo=eq.true&select=id,saldos,saldo_banhos,saldo_tosas_higienicas,data_adesao,data_expiracao,valor_pago,forma_pagamento,pacotes(nome)&order=criado_em.desc`
     );
     if (!pacotes || !pacotes.length) { el.innerHTML = ''; return; }
     el.innerHTML = pacotes.map(p => {
       const tmpl = p.pacotes || {};
-      const itens = tmpl.itens || [];
       const saldos = p.saldos || {};
+      const entries = Object.entries(saldos);
       let saldoRows = '';
-      if (itens.length) {
-        saldoRows = itens.map(item => {
-          const rest = saldos[item.servico_id] ?? 0;
-          const total = item.quantidade;
+      if (entries.length) {
+        saldoRows = entries.map(([id, val]) => {
+          const isObj = typeof val === 'object';
+          const nome = isObj ? val.nome : id;
+          const rest = isObj ? val.restante : val;
+          const total = isObj ? val.quantidade : val;
           const cor = rest > 0 ? 'var(--green)' : 'var(--muted)';
           return `<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--border);">
-            <span>${item.nome}</span>
+            <span>${nome}</span>
             <span style="color:${cor};font-weight:600;">${rest} / ${total} restantes</span>
           </div>`;
         }).join('');
@@ -3527,7 +3530,7 @@ async function carregarPacotesNaFicha(clienteId) {
       const dataExp = p.data_expiracao ? new Date(p.data_expiracao).toLocaleDateString('pt-BR') : '—';
       return `<div style="background:rgba(76,175,125,0.05);border:1px solid rgba(76,175,125,0.2);border-radius:10px;padding:12px;margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div style="font-size:13px;font-weight:600;color:var(--cream);">🎟️ ${tmpl.nome || 'Pacote'}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--cream);">🎟️ ${tmpl.nome || 'Pacote personalizado'}</div>
           <div style="font-size:11px;color:var(--muted);">válido até ${dataExp}</div>
         </div>
         ${saldoRows}
@@ -3801,6 +3804,7 @@ async function salvarNovoCliente() {
 // PACOTES
 // =====================
 // =====================
+// =====================
 // SUPABASE DIRECT
 // =====================
 async function sbGet(table, params = '') {
@@ -3829,15 +3833,9 @@ async function sbPatch(table, query, body) {
 // =====================
 // PACOTES
 // =====================
-let pacoteTemplates = [];
-
-async function carregarPacoteTemplates() {
-  if (pacoteTemplates.length) return pacoteTemplates;
-  try {
-    pacoteTemplates = await sbGet('pacotes', `tenant_id=eq.${TENANT_ID}&ativo=eq.true&select=id,nome,descricao,preco,preco_p,preco_m,preco_g,itens,total_banhos,total_tosas_higienicas`);
-  } catch(e) { pacoteTemplates = []; }
-  return pacoteTemplates;
-}
+let pacoteServicos = [];
+let porteAtualPacote = 'p';
+let pacoteValorEditado = false;
 
 async function abrirModalPacotes() {
   const list = document.getElementById('pacotesList');
@@ -3847,20 +3845,20 @@ async function abrirModalPacotes() {
     const pacotes = await sbGet('cliente_pacotes',
       `tenant_id=eq.${TENANT_ID}&ativo=eq.true&select=id,saldos,saldo_banhos,saldo_tosas_higienicas,data_adesao,data_expiracao,forma_pagamento,valor_pago,clientes(nome),pacotes(nome,itens)&order=criado_em.desc&limit=60`
     );
-    if (!pacotes || !pacotes.length) {
-      list.innerHTML = '<div class="notif-empty">Nenhum pacote ativo</div>';
-      return;
-    }
+    if (!pacotes || !pacotes.length) { list.innerHTML = '<div class="notif-empty">Nenhum pacote ativo</div>'; return; }
     list.innerHTML = pacotes.map(p => {
       const cli = p.clientes || {};
       const tmpl = p.pacotes || {};
-      const itens = tmpl.itens || [];
       const saldos = p.saldos || {};
-      const saldoHtml = itens.length
-        ? itens.map(item => {
-            const rest = saldos[item.servico_id] ?? 0;
+      const entries = Object.entries(saldos);
+      const saldoHtml = entries.length
+        ? entries.map(([id, val]) => {
+            const isObj = typeof val === 'object';
+            const nome = isObj ? val.nome : id;
+            const rest = isObj ? val.restante : val;
+            const total = isObj ? val.quantidade : val;
             const cor = rest > 0 ? 'var(--green)' : 'var(--muted)';
-            return `<span style="font-size:11px;color:${cor};">${item.nome}: ${rest}/${item.quantidade}</span>`;
+            return `<span style="font-size:11px;color:${cor};">${nome}: ${rest}/${total}</span>`;
           }).join(' &nbsp;·&nbsp; ')
         : (p.saldo_banhos > 0 ? `<span style="color:var(--green);">🛁 ${p.saldo_banhos} banhos</span>` : '—');
       const dataExp = p.data_expiracao ? new Date(p.data_expiracao).toLocaleDateString('pt-BR') : '—';
@@ -3870,142 +3868,160 @@ async function abrirModalPacotes() {
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
             <div>
               <div style="font-size:14px;font-weight:600;color:var(--cream);">👤 ${cli.nome || '—'}</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px;">🎟️ ${tmpl.nome || 'Pacote'} &nbsp;·&nbsp; Adesão: ${dataAdh} &nbsp;·&nbsp; Validade: ${dataExp}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px;">🎟️ ${tmpl.nome || 'Pacote personalizado'} &nbsp;·&nbsp; Adesão: ${dataAdh} &nbsp;·&nbsp; Validade: ${dataExp}</div>
             </div>
             <div style="font-size:11px;color:var(--muted);text-align:right;">${p.forma_pagamento || ''}<br>R$ ${parseFloat(p.valor_pago||0).toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
           </div>
           <div style="margin-top:4px;">${saldoHtml}</div>
         </div>`;
     }).join('');
-  } catch(e) {
-    list.innerHTML = '<div class="notif-empty">Erro ao carregar pacotes</div>';
-  }
+  } catch(e) { list.innerHTML = '<div class="notif-empty">Erro ao carregar pacotes</div>'; }
 }
 
 async function abrirAdicionarPacote(clienteId, clienteNome) {
   document.getElementById('pacote-cliente-id').value = clienteId;
-  document.getElementById('modalPacoteSub').textContent = `Adicionar pacote para ${clienteNome}`;
+  document.getElementById('modalPacoteSub').textContent = `Pacote para ${clienteNome}`;
   document.getElementById('pacote-data').value = new Date().toISOString().split('T')[0];
-  document.getElementById('btnConfirmarPacote').disabled = true;
-  document.getElementById('btnConfirmarPacote').textContent = 'Confirmar';
-  document.getElementById('pacote-preview').style.display = 'none';
-  document.getElementById('pacote-porte-group').style.display = 'none';
   document.getElementById('pacote-valor').value = '';
+  document.getElementById('btnConfirmarPacote').textContent = 'Confirmar';
+  porteAtualPacote = 'p';
+  pacoteValorEditado = false;
+  document.querySelectorAll('.btn-porte').forEach(b => b.classList.remove('active'));
+  const pBtn = document.querySelector('[data-porte="p"]');
+  if (pBtn) pBtn.classList.add('active');
 
-  const templates = await carregarPacoteTemplates();
-  const sel = document.getElementById('pacote-template-id');
-  sel.innerHTML = '<option value="">Selecione...</option>' +
-    templates.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
-
+  if (!pacoteServicos.length) {
+    try {
+      pacoteServicos = await sbGet('tenant_servicos',
+        `tenant_id=eq.${TENANT_ID}&ativo=eq.true&select=id,nome,categoria,preco_p,preco_m_pelo_curto,preco_m_pelo_longo,preco_g&order=categoria,nome`
+      );
+    } catch(e) { pacoteServicos = []; }
+  }
+  renderizarServicosPacote();
   document.getElementById('modalAdicionarPacote').classList.add('open');
 }
 
-function onPacoteTemplateChange() {
-  const templateId = document.getElementById('pacote-template-id').value;
-  if (!templateId) {
-    document.getElementById('pacote-preview').style.display = 'none';
-    document.getElementById('pacote-porte-group').style.display = 'none';
-    document.getElementById('btnConfirmarPacote').disabled = true;
-    return;
-  }
-  const tmpl = pacoteTemplates.find(t => t.id === templateId);
-  if (!tmpl) return;
-
-  document.getElementById('pacote-preview-nome').textContent = '📦 ' + tmpl.nome;
-
-  let itensHtml = '';
-  if (tmpl.itens && tmpl.itens.length > 0) {
-    itensHtml = tmpl.itens.map(i => `• ${i.quantidade}× ${i.nome}`).join('<br>');
-  } else {
-    const parts = [];
-    if (tmpl.total_banhos > 0) parts.push(`🛁 ${tmpl.total_banhos} banhos`);
-    if (tmpl.total_tosas_higienicas > 0) parts.push(`✂️ ${tmpl.total_tosas_higienicas} tosa higiênica`);
-    itensHtml = parts.join('<br>');
-  }
-  if (tmpl.descricao) itensHtml = `<em>${tmpl.descricao}</em><br>${itensHtml}`;
-  document.getElementById('pacote-preview-itens').innerHTML = itensHtml;
-
-  const temPorte = tmpl.preco_p || tmpl.preco_m || tmpl.preco_g;
-  document.getElementById('pacote-porte-group').style.display = temPorte ? '' : 'none';
-
-  let preco = temPorte
-    ? (parseFloat(tmpl.preco_p) || 0)
-    : parseFloat(tmpl.preco) || 0;
-
-  document.getElementById('pacote-preview-preco').textContent = preco ? `R$ ${preco.toLocaleString('pt-BR',{minimumFractionDigits:0})}` : '';
-  document.getElementById('pacote-valor').value = preco || '';
-  document.getElementById('btnConfirmarPacote').textContent = preco ? `Confirmar R$ ${preco.toLocaleString('pt-BR',{minimumFractionDigits:0})}` : 'Confirmar';
-  document.getElementById('btnConfirmarPacote').disabled = false;
-  document.getElementById('pacote-preview').style.display = '';
+function getPrecoServico(srv, porte) {
+  if (porte === 'p') return parseFloat(srv.preco_p) || null;
+  if (porte === 'm') return parseFloat(srv.preco_m_pelo_curto) || parseFloat(srv.preco_m_pelo_longo) || null;
+  if (porte === 'g') return parseFloat(srv.preco_g) || null;
+  return null;
 }
 
-function onPacotePorteChange() {
-  const templateId = document.getElementById('pacote-template-id').value;
-  const tmpl = pacoteTemplates.find(t => t.id === templateId);
-  if (!tmpl) return;
-  const porte = document.getElementById('pacote-porte').value;
-  const preco = parseFloat(porte === 'p' ? tmpl.preco_p : porte === 'm' ? tmpl.preco_m : tmpl.preco_g) || 0;
-  document.getElementById('pacote-preview-preco').textContent = `R$ ${preco.toLocaleString('pt-BR',{minimumFractionDigits:0})}`;
-  document.getElementById('pacote-valor').value = preco;
-  document.getElementById('btnConfirmarPacote').textContent = `Confirmar R$ ${preco.toLocaleString('pt-BR',{minimumFractionDigits:0})}`;
+function renderizarServicosPacote() {
+  const grupos = { banho: '🛁 Banho', tosa: '✂️ Tosa', adicional: '➕ Adicionais' };
+  const agrupado = { banho: [], tosa: [], adicional: [] };
+  pacoteServicos.forEach(s => { (agrupado[s.categoria] || agrupado.adicional).push(s); });
+
+  let html = '';
+  Object.entries(grupos).forEach(([cat, label]) => {
+    const lista = agrupado[cat];
+    if (!lista || !lista.length) return;
+    html += `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 4px;">${label}</div>`;
+    lista.forEach(s => {
+      const preco = getPrecoServico(s, porteAtualPacote);
+      const precoLabel = preco ? `R$ ${preco.toLocaleString('pt-BR',{minimumFractionDigits:0})}` : '—';
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);">
+        <div style="flex:1;font-size:13px;color:var(--text);">${s.nome}</div>
+        <div style="font-size:11px;color:var(--muted);min-width:50px;text-align:right;">${precoLabel}</div>
+        <input type="number" class="pacote-qty" data-id="${s.id}" data-nome="${s.nome}" data-cat="${s.categoria}"
+          min="0" max="99" value="0" oninput="calcularTotalPacote()">
+      </div>`;
+    });
+  });
+  document.getElementById('pacote-servicos-list').innerHTML = html;
+  calcularTotalPacote();
+}
+
+function setPortePacote(porte) {
+  porteAtualPacote = porte;
+  document.querySelectorAll('.btn-porte').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[data-porte="${porte}"]`).classList.add('active');
+  renderizarServicosPacote();
+}
+
+function calcularTotalPacote() {
+  let total = 0;
+  document.querySelectorAll('.pacote-qty').forEach(input => {
+    const qty = parseInt(input.value) || 0;
+    if (qty <= 0) return;
+    const srv = pacoteServicos.find(s => s.id === input.dataset.id);
+    if (!srv) return;
+    const preco = getPrecoServico(srv, porteAtualPacote);
+    if (preco) total += preco * qty;
+  });
+  const sugestao = Math.round(total * 0.9);
+  document.getElementById('pacote-total-tabela').textContent = `R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:0})}`;
+  document.getElementById('pacote-sugestao').textContent = `R$ ${sugestao.toLocaleString('pt-BR',{minimumFractionDigits:0})}`;
+  if (!pacoteValorEditado) {
+    document.getElementById('pacote-valor').value = sugestao || '';
+    document.getElementById('btnConfirmarPacote').textContent = sugestao ? `Confirmar R$ ${sugestao.toLocaleString('pt-BR',{minimumFractionDigits:0})}` : 'Confirmar';
+  }
+}
+
+function atualizarBtnConfirmar() {
+  pacoteValorEditado = true;
+  const val = parseFloat(document.getElementById('pacote-valor').value) || 0;
+  document.getElementById('btnConfirmarPacote').textContent = val ? `Confirmar R$ ${val.toLocaleString('pt-BR',{minimumFractionDigits:0})}` : 'Confirmar';
 }
 
 async function confirmarPacote() {
   const clienteId = document.getElementById('pacote-cliente-id').value;
-  const templateId = document.getElementById('pacote-template-id').value;
   const pagamento = document.getElementById('pacote-pagamento').value;
   const dataAdesao = document.getElementById('pacote-data').value;
   const valorPacote = parseFloat(document.getElementById('pacote-valor')?.value) || 0;
 
-  if (!templateId) { showToast('Selecione um pacote', 'error'); return; }
-  const tmpl = pacoteTemplates.find(t => t.id === templateId);
-  if (!tmpl) return;
-
   const saldos = {};
-  (tmpl.itens || []).forEach(item => { saldos[item.servico_id] = item.quantidade; });
+  let totalBanhos = 0, totalTosasHig = 0;
+  document.querySelectorAll('.pacote-qty').forEach(input => {
+    const qty = parseInt(input.value) || 0;
+    if (qty <= 0) return;
+    const srv = pacoteServicos.find(s => s.id === input.dataset.id);
+    if (!srv) return;
+    const preco = getPrecoServico(srv, porteAtualPacote) || 0;
+    saldos[srv.id] = { nome: srv.nome, quantidade: qty, restante: qty, preco_unit: preco };
+    if (srv.categoria === 'banho') totalBanhos += qty;
+    if (srv.nome.toLowerCase().includes('higiênica')) totalTosasHig += qty;
+  });
+
+  if (!Object.keys(saldos).length) { showToast('Selecione pelo menos um serviço', 'error'); return; }
 
   const dataExp = new Date();
   dataExp.setMonth(dataExp.getMonth() + 4);
 
   try {
     await sbPost('cliente_pacotes', {
-      tenant_id: TENANT_ID,
-      cliente_id: clienteId,
-      pacote_id: templateId,
-      saldos,
-      saldo_banhos: tmpl.total_banhos || 0,
-      saldo_tosas_higienicas: tmpl.total_tosas_higienicas || 0,
-      valor_pago: valorPacote,
-      forma_pagamento: pagamento,
-      data_adesao: dataAdesao,
-      data_expiracao: dataExp.toISOString().split('T')[0],
-      ativo: true
+      tenant_id: TENANT_ID, cliente_id: clienteId,
+      saldos, saldo_banhos: totalBanhos, saldo_tosas_higienicas: totalTosasHig,
+      valor_pago: valorPacote, forma_pagamento: pagamento,
+      data_adesao: dataAdesao, data_expiracao: dataExp.toISOString().split('T')[0], ativo: true
     });
 
-    if ((tmpl.total_banhos || 0) > 0) {
+    if (totalBanhos > 0) {
       fetch(`${N8N_CADASTRO}/pacote`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenant_id: TENANT_ID, cliente_id: clienteId, valor: valorPacote, forma_pagamento: pagamento, data_adesao: dataAdesao, saldo_banhos: tmpl.total_banhos, saldo_tosas: tmpl.total_tosas_higienicas || 0 })
+        body: JSON.stringify({ tenant_id: TENANT_ID, cliente_id: clienteId, valor: valorPacote, forma_pagamento: pagamento, data_adesao: dataAdesao, saldo_banhos: totalBanhos, saldo_tosas: totalTosasHig })
       }).catch(() => {});
     }
 
     const idx = todosClientes.findIndex(c => c.id === clienteId);
-    if (idx >= 0 && tmpl.total_banhos > 0) {
-      todosClientes[idx].saldo_pacote = (todosClientes[idx].saldo_pacote || 0) + tmpl.total_banhos;
-      todosClientes[idx].saldo_tosa_higienica = (todosClientes[idx].saldo_tosa_higienica || 0) + (tmpl.total_tosas_higienicas || 0);
+    if (idx >= 0 && totalBanhos > 0) {
+      todosClientes[idx].saldo_pacote = (todosClientes[idx].saldo_pacote || 0) + totalBanhos;
+      todosClientes[idx].saldo_tosa_higienica = (todosClientes[idx].saldo_tosa_higienica || 0) + totalTosasHig;
     }
-    if (clienteAtualFicha && clienteAtualFicha.id === clienteId && tmpl.total_banhos > 0) {
-      clienteAtualFicha.saldo_pacote = (clienteAtualFicha.saldo_pacote || 0) + tmpl.total_banhos;
-      clienteAtualFicha.saldo_tosa_higienica = (clienteAtualFicha.saldo_tosa_higienica || 0) + (tmpl.total_tosas_higienicas || 0);
+    if (clienteAtualFicha && clienteAtualFicha.id === clienteId && totalBanhos > 0) {
+      clienteAtualFicha.saldo_pacote = (clienteAtualFicha.saldo_pacote || 0) + totalBanhos;
+      clienteAtualFicha.saldo_tosa_higienica = (clienteAtualFicha.saldo_tosa_higienica || 0) + totalTosasHig;
     }
 
     closeModal('modalAdicionarPacote');
-    showToast(`Pacote "${tmpl.nome}" adicionado! R$ ${valorPacote.toLocaleString('pt-BR',{minimumFractionDigits:0})} ✓`, 'success');
+    showToast(`Pacote adicionado! R$ ${valorPacote.toLocaleString('pt-BR',{minimumFractionDigits:0})} ✓`, 'success');
     if (clienteAtualFicha && clienteAtualFicha.id === clienteId) abrirFicha(clienteAtualFicha);
   } catch(e) {
-    showToast('Erro ao adicionar pacote', 'error');
+    showToast('Erro ao salvar pacote', 'error');
   }
 }
+
 
 // =====================
 // NOVO PET
