@@ -1225,23 +1225,34 @@
 <div class="modal-overlay" id="modalAdicionarPacote">
   <div class="modal" style="max-width:420px;">
     <div class="modal-title">🎟️ Adicionar pacote</div>
-    <div class="modal-sub" id="modalPacoteSub">Pacote de banho para o cliente</div>
+    <div class="modal-sub" id="modalPacoteSub">Selecione um pacote para o cliente</div>
     <input type="hidden" id="pacote-cliente-id">
 
-    <div style="background:rgba(201,151,58,0.05);border:1px solid rgba(201,151,58,0.2);border-radius:12px;padding:14px;margin-bottom:16px;">
-      <div style="font-size:13px;font-weight:600;color:var(--cream);margin-bottom:8px;">📦 Pacote Banho MagaPet</div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.8;">
-        🛁 4 banhos<br>
-        ✂️ 1 tosa higiênica cortesia<br>
-        ⏳ Prazo de 4 meses<br>
-        📅 Válido de domingo a domingo
-      </div>
-      <div style="font-size:22px;font-family:'Instrument Serif',serif;color:var(--gold);margin-top:10px;">R$ 260</div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Pacote</label>
+      <select class="modal-input" id="pacote-template-id" style="margin:0;" onchange="onPacoteTemplateChange()">
+        <option value="">Selecione...</option>
+      </select>
+    </div>
+
+    <div id="pacote-preview" style="display:none;background:rgba(201,151,58,0.05);border:1px solid rgba(201,151,58,0.2);border-radius:12px;padding:14px;margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:600;color:var(--cream);margin-bottom:6px;" id="pacote-preview-nome"></div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.8;" id="pacote-preview-itens"></div>
+      <div style="font-size:22px;font-family:'Instrument Serif',serif;color:var(--gold);margin-top:10px;" id="pacote-preview-preco"></div>
+    </div>
+
+    <div class="form-group" id="pacote-porte-group" style="margin-bottom:12px;display:none;">
+      <label class="form-label">Porte do pet</label>
+      <select class="modal-input" id="pacote-porte" style="margin:0;" onchange="onPacotePorteChange()">
+        <option value="p">Pequeno (P)</option>
+        <option value="m">Médio (M)</option>
+        <option value="g">Grande (G)</option>
+      </select>
     </div>
 
     <div class="form-group" style="margin-bottom:12px;">
       <label class="form-label">Valor pago (R$)</label>
-      <input class="modal-input" type="number" id="pacote-valor" placeholder="260" value="260" min="0" step="1" style="margin:0;" oninput="document.getElementById('btnConfirmarPacote').textContent='Confirmar R$ '+parseFloat(this.value||0).toLocaleString('pt-BR',{minimumFractionDigits:0})">
+      <input class="modal-input" type="number" id="pacote-valor" placeholder="0" min="0" step="1" style="margin:0;" oninput="document.getElementById('btnConfirmarPacote').textContent='Confirmar R$ '+parseFloat(this.value||0).toLocaleString('pt-BR',{minimumFractionDigits:0})">
     </div>
 
     <div class="form-group" style="margin-bottom:12px;">
@@ -1250,6 +1261,7 @@
         <option value="Pix">Pix</option>
         <option value="Débito">Débito</option>
         <option value="Crédito">Crédito</option>
+        <option value="Dinheiro">Dinheiro</option>
       </select>
     </div>
 
@@ -1260,7 +1272,7 @@
 
     <div class="modal-actions">
       <button class="btn-modal-cancel" onclick="closeModal('modalAdicionarPacote')">Cancelar</button>
-      <button class="btn-modal-primary" onclick="confirmarPacote()" id="btnConfirmarPacote">Confirmar R$ 260</button>
+      <button class="btn-modal-primary" onclick="confirmarPacote()" id="btnConfirmarPacote" disabled>Confirmar</button>
     </div>
   </div>
 </div>
@@ -1426,6 +1438,8 @@ const N8N_LEITURA = 'https://n8n-eogk.srv1598428.hstgr.cloud/webhook/8dbdd575-ef
 const N8N_ATENDIMENTO = 'https://n8n-eogk.srv1598428.hstgr.cloud/webhook/crm-atendimento-001/crm';
 const N8N_CADASTRO = 'https://n8n-eogk.srv1598428.hstgr.cloud/webhook/crm-cadastro-001/crm-cadastro';
 const TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const SB_URL = 'https://asiybcvdbbooyscirycw.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzaXliY3ZkYmJvb3lzY2lyeWN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzYyMDAsImV4cCI6MjA5Mjk1MjIwMH0.B608ZQg9EiVYccIIXxgBHVvv3ee_G9RnmrxHuyKINaE';
 const GOOGLE_LINK = 'https://share.google/ChXCIpXGSeRs3jyMF';
 const INSTAGRAM = '@MagaPet.oficial';
 
@@ -3424,7 +3438,7 @@ async function desbloquearCliente(clienteId, telefone) {
   abrirFicha(clienteAtualFicha);
 }
 
-function abrirFicha(cliente) {
+async function abrirFicha(cliente) {
   clienteAtualFicha = cliente;
   showPage('ficha');
   const pets = cliente.pets || [];
@@ -3451,10 +3465,10 @@ function abrirFicha(cliente) {
         ${(() => { const tl = String(cliente.telefone||'').replace(/\D/g,''); const bloq = cliente.bloqueado || clientesBloqueados.has(cliente.telefone) || clientesBloqueados.has(tl); return bloq ? `<button class="btn" style="background:#fef0ee;color:#d95f52;border:1px solid #d95f52;" onclick="desbloquearCliente('${cliente.id}','${cliente.telefone}')">🔓 Desbloquear</button>` : `<button class="btn" style="background:#fef0ee;color:#d95f52;border:1px solid #d95f52;" onclick="abrirBloqueioCliente('${cliente.id}','${cliente.telefone}','${cliente.nome}')">🚫 Bloquear</button>`; })()}
       </div>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-      ${cliente.saldo_pacote ? `<div style="background:rgba(76,175,125,0.1);border:1px solid rgba(76,175,125,0.2);border-radius:10px;padding:10px 16px;font-size:13px;color:var(--green);flex:1;">🎟️ Pacote ativo: ${cliente.saldo_pacote} banhos disponíveis</div>` : ''}
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
       <button class="btn btn-adicional" onclick="abrirAdicionarPacote('${cliente.id}', '${cliente.nome}')">🎟️ + Pacote</button>
     </div>
+    <div id="fichaPackages" style="margin-bottom:16px;"></div>
     ${(cliente.email || cliente.endereco || cliente.telefone_secundario || cliente.como_conheceu) ? `
     <div class="chart-card" style="max-width:600px;margin-bottom:20px;">
       <div class="expanded-title" style="margin-bottom:10px;">📋 Informações do tutor</div>
@@ -3480,6 +3494,46 @@ function abrirFicha(cliente) {
         '</div>';
     })()}
   `;
+  // Carrega pacotes ativos do cliente
+  carregarPacotesNaFicha(cliente.id);
+}
+
+async function carregarPacotesNaFicha(clienteId) {
+  const el = document.getElementById('fichaPackages');
+  if (!el) return;
+  try {
+    const pacotes = await sbGet('cliente_pacotes',
+      `cliente_id=eq.${clienteId}&ativo=eq.true&select=id,saldos,saldo_banhos,saldo_tosas_higienicas,data_adesao,data_expiracao,valor_pago,forma_pagamento,pacotes(nome,descricao,itens)&order=criado_em.desc`
+    );
+    if (!pacotes || !pacotes.length) { el.innerHTML = ''; return; }
+    el.innerHTML = pacotes.map(p => {
+      const tmpl = p.pacotes || {};
+      const itens = tmpl.itens || [];
+      const saldos = p.saldos || {};
+      let saldoRows = '';
+      if (itens.length) {
+        saldoRows = itens.map(item => {
+          const rest = saldos[item.servico_id] ?? 0;
+          const total = item.quantidade;
+          const cor = rest > 0 ? 'var(--green)' : 'var(--muted)';
+          return `<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--border);">
+            <span>${item.nome}</span>
+            <span style="color:${cor};font-weight:600;">${rest} / ${total} restantes</span>
+          </div>`;
+        }).join('');
+      } else if (p.saldo_banhos > 0) {
+        saldoRows = `<div style="font-size:12px;color:var(--green);">🛁 ${p.saldo_banhos} banhos &nbsp;·&nbsp; ✂️ ${p.saldo_tosas_higienicas || 0} tosa higiênica</div>`;
+      }
+      const dataExp = p.data_expiracao ? new Date(p.data_expiracao).toLocaleDateString('pt-BR') : '—';
+      return `<div style="background:rgba(76,175,125,0.05);border:1px solid rgba(76,175,125,0.2);border-radius:10px;padding:12px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="font-size:13px;font-weight:600;color:var(--cream);">🎟️ ${tmpl.nome || 'Pacote'}</div>
+          <div style="font-size:11px;color:var(--muted);">válido até ${dataExp}</div>
+        </div>
+        ${saldoRows}
+      </div>`;
+    }).join('');
+  } catch(e) { el.innerHTML = ''; }
 }
 
 function badge(ok, sim, nao) {
@@ -3694,7 +3748,7 @@ function onDatePickerChange(val) {
 }
 
 
-const MOCK_PACOTES = [];
+// MOCK_PACOTES removido — pacotes carregados do Supabase em tempo real
 
 // =====================
 // NOVO CLIENTE
@@ -3746,72 +3800,211 @@ async function salvarNovoCliente() {
 // =====================
 // PACOTES
 // =====================
-function abrirModalPacotes() {
-  const list = document.getElementById('pacotesList');
-  if (!MOCK_PACOTES.length) {
-    list.innerHTML = '<div class="notif-empty">Nenhum pacote ativo</div>';
-  } else {
-    list.innerHTML = MOCK_PACOTES.map(p => `
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-          <div>
-            <div style="font-size:14px;font-weight:600;color:var(--cream);">👤 ${p.cliente_nome} · 🐶 ${p.pet_nome}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px;">Adesão: ${p.data_adesao} · Validade: ${p.validade} · ${p.forma_pagamento}</div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:13px;color:var(--green);">🛁 ${p.saldo_banhos} banhos</div>
-            <div style="font-size:11px;color:var(--muted);">✂️ ${p.saldo_tosa} tosa higiênica</div>
-          </div>
-        </div>
-        <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;">
-          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Histórico de uso</div>
-          ${p.historico.map(h => `
-            <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
-              <span style="color:var(--text);">${h.servico}</span>
-              <span style="color:var(--muted);">${h.data} · ${h.saldo_antes}→${h.saldo_depois} banhos</span>
-            </div>`).join('')}
-        </div>
-      </div>`).join('');
-  }
-  document.getElementById('modalPacotes').classList.add('open');
+// =====================
+// SUPABASE DIRECT
+// =====================
+async function sbGet(table, params = '') {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?${params}`, {
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+  });
+  return r.json();
+}
+async function sbPost(table, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+async function sbPatch(table, query, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?${query}`, {
+    method: 'PATCH',
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+    body: JSON.stringify(body)
+  });
+  return r.json();
 }
 
-function abrirAdicionarPacote(clienteId, clienteNome) {
+// =====================
+// PACOTES
+// =====================
+let pacoteTemplates = [];
+
+async function carregarPacoteTemplates() {
+  if (pacoteTemplates.length) return pacoteTemplates;
+  try {
+    pacoteTemplates = await sbGet('pacotes', `tenant_id=eq.${TENANT_ID}&ativo=eq.true&select=id,nome,descricao,preco,preco_p,preco_m,preco_g,itens,total_banhos,total_tosas_higienicas`);
+  } catch(e) { pacoteTemplates = []; }
+  return pacoteTemplates;
+}
+
+async function abrirModalPacotes() {
+  const list = document.getElementById('pacotesList');
+  list.innerHTML = '<div class="notif-empty">Carregando...</div>';
+  document.getElementById('modalPacotes').classList.add('open');
+  try {
+    const pacotes = await sbGet('cliente_pacotes',
+      `tenant_id=eq.${TENANT_ID}&ativo=eq.true&select=id,saldos,saldo_banhos,saldo_tosas_higienicas,data_adesao,data_expiracao,forma_pagamento,valor_pago,clientes(nome),pacotes(nome,itens)&order=criado_em.desc&limit=60`
+    );
+    if (!pacotes || !pacotes.length) {
+      list.innerHTML = '<div class="notif-empty">Nenhum pacote ativo</div>';
+      return;
+    }
+    list.innerHTML = pacotes.map(p => {
+      const cli = p.clientes || {};
+      const tmpl = p.pacotes || {};
+      const itens = tmpl.itens || [];
+      const saldos = p.saldos || {};
+      const saldoHtml = itens.length
+        ? itens.map(item => {
+            const rest = saldos[item.servico_id] ?? 0;
+            const cor = rest > 0 ? 'var(--green)' : 'var(--muted)';
+            return `<span style="font-size:11px;color:${cor};">${item.nome}: ${rest}/${item.quantidade}</span>`;
+          }).join(' &nbsp;·&nbsp; ')
+        : (p.saldo_banhos > 0 ? `<span style="color:var(--green);">🛁 ${p.saldo_banhos} banhos</span>` : '—');
+      const dataExp = p.data_expiracao ? new Date(p.data_expiracao).toLocaleDateString('pt-BR') : '—';
+      const dataAdh = p.data_adesao ? new Date(p.data_adesao).toLocaleDateString('pt-BR') : '—';
+      return `
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+            <div>
+              <div style="font-size:14px;font-weight:600;color:var(--cream);">👤 ${cli.nome || '—'}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px;">🎟️ ${tmpl.nome || 'Pacote'} &nbsp;·&nbsp; Adesão: ${dataAdh} &nbsp;·&nbsp; Validade: ${dataExp}</div>
+            </div>
+            <div style="font-size:11px;color:var(--muted);text-align:right;">${p.forma_pagamento || ''}<br>R$ ${parseFloat(p.valor_pago||0).toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
+          </div>
+          <div style="margin-top:4px;">${saldoHtml}</div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<div class="notif-empty">Erro ao carregar pacotes</div>';
+  }
+}
+
+async function abrirAdicionarPacote(clienteId, clienteNome) {
   document.getElementById('pacote-cliente-id').value = clienteId;
   document.getElementById('modalPacoteSub').textContent = `Adicionar pacote para ${clienteNome}`;
   document.getElementById('pacote-data').value = new Date().toISOString().split('T')[0];
+  document.getElementById('btnConfirmarPacote').disabled = true;
+  document.getElementById('btnConfirmarPacote').textContent = 'Confirmar';
+  document.getElementById('pacote-preview').style.display = 'none';
+  document.getElementById('pacote-porte-group').style.display = 'none';
+  document.getElementById('pacote-valor').value = '';
+
+  const templates = await carregarPacoteTemplates();
+  const sel = document.getElementById('pacote-template-id');
+  sel.innerHTML = '<option value="">Selecione...</option>' +
+    templates.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+
   document.getElementById('modalAdicionarPacote').classList.add('open');
+}
+
+function onPacoteTemplateChange() {
+  const templateId = document.getElementById('pacote-template-id').value;
+  if (!templateId) {
+    document.getElementById('pacote-preview').style.display = 'none';
+    document.getElementById('pacote-porte-group').style.display = 'none';
+    document.getElementById('btnConfirmarPacote').disabled = true;
+    return;
+  }
+  const tmpl = pacoteTemplates.find(t => t.id === templateId);
+  if (!tmpl) return;
+
+  document.getElementById('pacote-preview-nome').textContent = '📦 ' + tmpl.nome;
+
+  let itensHtml = '';
+  if (tmpl.itens && tmpl.itens.length > 0) {
+    itensHtml = tmpl.itens.map(i => `• ${i.quantidade}× ${i.nome}`).join('<br>');
+  } else {
+    const parts = [];
+    if (tmpl.total_banhos > 0) parts.push(`🛁 ${tmpl.total_banhos} banhos`);
+    if (tmpl.total_tosas_higienicas > 0) parts.push(`✂️ ${tmpl.total_tosas_higienicas} tosa higiênica`);
+    itensHtml = parts.join('<br>');
+  }
+  if (tmpl.descricao) itensHtml = `<em>${tmpl.descricao}</em><br>${itensHtml}`;
+  document.getElementById('pacote-preview-itens').innerHTML = itensHtml;
+
+  const temPorte = tmpl.preco_p || tmpl.preco_m || tmpl.preco_g;
+  document.getElementById('pacote-porte-group').style.display = temPorte ? '' : 'none';
+
+  let preco = temPorte
+    ? (parseFloat(tmpl.preco_p) || 0)
+    : parseFloat(tmpl.preco) || 0;
+
+  document.getElementById('pacote-preview-preco').textContent = preco ? `R$ ${preco.toLocaleString('pt-BR',{minimumFractionDigits:0})}` : '';
+  document.getElementById('pacote-valor').value = preco || '';
+  document.getElementById('btnConfirmarPacote').textContent = preco ? `Confirmar R$ ${preco.toLocaleString('pt-BR',{minimumFractionDigits:0})}` : 'Confirmar';
+  document.getElementById('btnConfirmarPacote').disabled = false;
+  document.getElementById('pacote-preview').style.display = '';
+}
+
+function onPacotePorteChange() {
+  const templateId = document.getElementById('pacote-template-id').value;
+  const tmpl = pacoteTemplates.find(t => t.id === templateId);
+  if (!tmpl) return;
+  const porte = document.getElementById('pacote-porte').value;
+  const preco = parseFloat(porte === 'p' ? tmpl.preco_p : porte === 'm' ? tmpl.preco_m : tmpl.preco_g) || 0;
+  document.getElementById('pacote-preview-preco').textContent = `R$ ${preco.toLocaleString('pt-BR',{minimumFractionDigits:0})}`;
+  document.getElementById('pacote-valor').value = preco;
+  document.getElementById('btnConfirmarPacote').textContent = `Confirmar R$ ${preco.toLocaleString('pt-BR',{minimumFractionDigits:0})}`;
 }
 
 async function confirmarPacote() {
   const clienteId = document.getElementById('pacote-cliente-id').value;
+  const templateId = document.getElementById('pacote-template-id').value;
   const pagamento = document.getElementById('pacote-pagamento').value;
   const dataAdesao = document.getElementById('pacote-data').value;
-  const valorPacote = parseFloat(document.getElementById('pacote-valor')?.value) || 260;
+  const valorPacote = parseFloat(document.getElementById('pacote-valor')?.value) || 0;
+
+  if (!templateId) { showToast('Selecione um pacote', 'error'); return; }
+  const tmpl = pacoteTemplates.find(t => t.id === templateId);
+  if (!tmpl) return;
+
+  const saldos = {};
+  (tmpl.itens || []).forEach(item => { saldos[item.servico_id] = item.quantidade; });
+
+  const dataExp = new Date();
+  dataExp.setMonth(dataExp.getMonth() + 4);
 
   try {
-    await fetch(`${N8N_CADASTRO}/pacote`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: TENANT_ID, cliente_id: clienteId, valor: valorPacote, forma_pagamento: pagamento, data_adesao: dataAdesao, saldo_banhos: 4, saldo_tosas: 1 }),
-      signal: undefined
+    await sbPost('cliente_pacotes', {
+      tenant_id: TENANT_ID,
+      cliente_id: clienteId,
+      pacote_id: templateId,
+      saldos,
+      saldo_banhos: tmpl.total_banhos || 0,
+      saldo_tosas_higienicas: tmpl.total_tosas_higienicas || 0,
+      valor_pago: valorPacote,
+      forma_pagamento: pagamento,
+      data_adesao: dataAdesao,
+      data_expiracao: dataExp.toISOString().split('T')[0],
+      ativo: true
     });
-  } catch {}
 
-  // FIX-5: atualiza saldo em todosClientes E clienteAtualFicha para persistir na sessão
-  const idxCliente = todosClientes.findIndex(c => c.id === clienteId);
-  if (idxCliente >= 0) {
-    todosClientes[idxCliente].saldo_pacote = (todosClientes[idxCliente].saldo_pacote || 0) + 4;
-    todosClientes[idxCliente].saldo_tosa_higienica = (todosClientes[idxCliente].saldo_tosa_higienica || 0) + 1;
-  }
-  if (clienteAtualFicha && clienteAtualFicha.id === clienteId) {
-    clienteAtualFicha.saldo_pacote = (clienteAtualFicha.saldo_pacote || 0) + 4;
-    clienteAtualFicha.saldo_tosa_higienica = (clienteAtualFicha.saldo_tosa_higienica || 0) + 1;
-  }
+    if ((tmpl.total_banhos || 0) > 0) {
+      fetch(`${N8N_CADASTRO}/pacote`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_id: TENANT_ID, cliente_id: clienteId, valor: valorPacote, forma_pagamento: pagamento, data_adesao: dataAdesao, saldo_banhos: tmpl.total_banhos, saldo_tosas: tmpl.total_tosas_higienicas || 0 })
+      }).catch(() => {});
+    }
 
-  closeModal('modalAdicionarPacote');
-  showToast(`Pacote adicionado! R$ ${valorPacote.toLocaleString('pt-BR', {minimumFractionDigits:0})} registrado ✓`, 'success');
-  if (clienteAtualFicha) abrirFicha(clienteAtualFicha);
+    const idx = todosClientes.findIndex(c => c.id === clienteId);
+    if (idx >= 0 && tmpl.total_banhos > 0) {
+      todosClientes[idx].saldo_pacote = (todosClientes[idx].saldo_pacote || 0) + tmpl.total_banhos;
+      todosClientes[idx].saldo_tosa_higienica = (todosClientes[idx].saldo_tosa_higienica || 0) + (tmpl.total_tosas_higienicas || 0);
+    }
+    if (clienteAtualFicha && clienteAtualFicha.id === clienteId && tmpl.total_banhos > 0) {
+      clienteAtualFicha.saldo_pacote = (clienteAtualFicha.saldo_pacote || 0) + tmpl.total_banhos;
+      clienteAtualFicha.saldo_tosa_higienica = (clienteAtualFicha.saldo_tosa_higienica || 0) + (tmpl.total_tosas_higienicas || 0);
+    }
+
+    closeModal('modalAdicionarPacote');
+    showToast(`Pacote "${tmpl.nome}" adicionado! R$ ${valorPacote.toLocaleString('pt-BR',{minimumFractionDigits:0})} ✓`, 'success');
+    if (clienteAtualFicha && clienteAtualFicha.id === clienteId) abrirFicha(clienteAtualFicha);
+  } catch(e) {
+    showToast('Erro ao adicionar pacote', 'error');
+  }
 }
 
 // =====================
