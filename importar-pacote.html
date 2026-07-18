@@ -279,7 +279,7 @@ async function buscarCliente() {
   const dd = document.getElementById('cDropdown');
   if (q.length < 2) { dd.innerHTML = '<div class="dropdown-item" style="color:var(--muted)">Digite ao menos 2 caracteres</div>'; dd.style.display = ''; return; }
   dd.innerHTML = '<div class="dropdown-item" style="color:var(--muted)">Buscando...</div>';
-  dd.style.display = '';
+  dd.style.display = 'block';
   try {
     const isPhone = /^\d+$/.test(q);
     const pat = encodeURIComponent(`%${q}%`);
@@ -287,7 +287,7 @@ async function buscarCliente() {
       ? `tenant_id=eq.${TENANT_ID}&telefone=ilike.${pat}&select=id,nome,telefone&limit=8`
       : `tenant_id=eq.${TENANT_ID}&nome=ilike.${pat}&select=id,nome,telefone&order=nome&limit=8`;
     const m = await sbGet('clientes', filter);
-    if (!m || !m.length) {
+    if (!m || !m.length || m.code) {
       dd.innerHTML = '<div class="dropdown-item" style="color:var(--muted)">Nenhum cliente encontrado</div>';
       return;
     }
@@ -297,7 +297,7 @@ async function buscarCliente() {
       </div>`
     ).join('');
   } catch(e) {
-    dd.innerHTML = '<div class="dropdown-item" style="color:#d95f52">Erro ao buscar. Tente novamente.</div>';
+    dd.innerHTML = `<div class="dropdown-item" style="color:#d95f52">Erro: ${e.message}</div>`;
   }
 }
 function selecionarCliente(id, nome, tel) {
@@ -306,7 +306,7 @@ function selecionarCliente(id, nome, tel) {
   document.getElementById('cDropdown').style.display = 'none';
   const sel = document.getElementById('cSel');
   sel.textContent = `✓ ${nome} · ${tel}`;
-  sel.style.display = '';
+  sel.style.display = 'block';
   document.getElementById('novoCampos').style.display = 'none';
   document.getElementById('btnNovo').textContent = '+ Novo cliente';
 }
