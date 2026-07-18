@@ -3300,6 +3300,50 @@ async function salvarEncaixe() {
     return;
   }
 
+  // Revalida capacidade do slot antes de confirmar
+  const _tipo = getTipoServico();
+  const _dur = getDuracaoEncaixe();
+  const _slotsNec = Math.ceil(_dur / 60);
+  const _dataObj = new Date(data + 'T12:00:00');
+  const _diaSem = _dataObj.getDay();
+  const _cap = getCapacidadeDia(_diaSem, data);
+  const _func = getHorarioDia(_diaSem, data);
+  if (!_func || (_cap && _cap[_tipo] === 0)) {
+    showToast('Sem vagas para este serviço neste dia', 'error');
+    return;
+  }
+  let _agsDia = agendamentos.filter(a =>
+    a.data_hora && a.data_hora.startsWith(data) && !['cancelado','entregue'].includes(a.status)
+  );
+  try {
+    const _res = await fetch(`${N8N_LEITURA}/agenda?tenant_id=${TENANT_ID}&data=${data}`);
+    if (_res.ok) {
+      const _raw = await _res.json();
+      let _lista = Array.isArray(_raw) ? _raw : [];
+      if (_lista.length && _lista[0]?.json) _lista = _lista.map(i => i.json);
+      _agsDia = _lista.filter(a => !a._empty && !['cancelado','entregue'].includes(a.status));
+    }
+  } catch {}
+  const _h = parseInt(horario.split(':')[0]);
+  let _maxOcup = 0;
+  for (let _s = 0; _s < _slotsNec; _s++) {
+    const _slotH = _h + _s;
+    const _ocup = _agsDia.filter(a => {
+      const _srv = SERVICOS_TENANT.find(s => s.id === a.servico_id) || SERVICOS_TENANT.find(s => s.nome === a.servico);
+      let _aTipo = 'banho';
+      if (_srv) _aTipo = _srv.categoria === 'tosa' ? 'tosa' : 'banho';
+      else if (a.servico) _aTipo = (a.servico.toLowerCase().includes('tosa') && !a.servico.toLowerCase().includes('higiênica')) ? 'tosa' : 'banho';
+      if (_tipo !== _aTipo) return false;
+      let _aH = a.hora ? parseInt(a.hora.split(':')[0]) : a.data_hora ? (d => (d.getUTCHours() - 3 + 24) % 24)(new Date(a.data_hora)) : 0;
+      return _slotH >= _aH && _slotH < _aH + Math.ceil((a.duracao_minutos || 60) / 60);
+    }).length;
+    _maxOcup = Math.max(_maxOcup, _ocup);
+  }
+  if (_cap && _cap[_tipo] !== undefined && _maxOcup >= _cap[_tipo]) {
+    showToast(`Horário ${horario} está lotado para ${_tipo}. Escolha outro horário.`, 'error');
+    return;
+  }
+
   // FIX-1: valida pet_id (não usa se for igual ao nome — não é uuid real)
   let petId = petSelecionado?.id || null;
   if (petId && petId === petSelecionado?.nome) petId = null;
