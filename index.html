@@ -1100,9 +1100,130 @@
   <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <div class="modal-title" style="margin:0;">🎟️ Pacotes ativos</div>
-      <button class="btn-modal-cancel" onclick="closeModal('modalPacotes')" style="padding:6px 12px;">✕</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-adicional" onclick="abrirImportarPacote()" style="font-size:12px;padding:5px 12px;">📦 Registrar existente</button>
+        <button class="btn-modal-cancel" onclick="closeModal('modalPacotes')" style="padding:6px 12px;">✕</button>
+      </div>
     </div>
     <div id="pacotesList"></div>
+  </div>
+</div>
+
+<!-- MODAL IMPORTAR PACOTE EXISTENTE -->
+<div class="modal-overlay" id="modalImportarPacote">
+  <div class="modal" style="max-width:520px;max-height:94vh;overflow-y:auto;padding:20px;">
+    <div class="modal-title">📦 Registrar pacote existente</div>
+    <div class="modal-sub" style="margin-bottom:16px;">Cadastre um pacote que o cliente já tinha antes do sistema.</div>
+
+    <!-- CLIENTE -->
+    <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">👤 Cliente</div>
+    <div style="position:relative;margin-bottom:8px;">
+      <input class="modal-input" id="imp-cliente-busca" type="text" placeholder="Buscar cliente existente por nome ou telefone..." oninput="buscarClienteImport(this.value)" autocomplete="off" style="margin:0;">
+      <div id="imp-cliente-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:8px;max-height:150px;overflow-y:auto;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,0.18);"></div>
+    </div>
+    <div id="imp-cliente-selecionado" style="display:none;margin-bottom:10px;font-size:12px;color:var(--green);font-weight:600;padding:6px 10px;background:rgba(76,175,125,0.08);border-radius:6px;"></div>
+    <input type="hidden" id="imp-cliente-id">
+
+    <!-- Campos de novo cliente (aparece se não encontrou) -->
+    <div id="imp-novo-cliente-campos" style="display:none;margin-bottom:4px;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Ou preencha para criar um novo cliente:</div>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="form-group">
+          <label class="form-label">Nome *</label>
+          <input class="modal-input" id="imp-nome-cliente" type="text" placeholder="Nome completo" style="margin:0;">
+        </div>
+        <div class="form-group">
+          <label class="form-label">WhatsApp *</label>
+          <input class="modal-input" id="imp-tel-cliente" type="tel" placeholder="(11) 99999-9999" style="margin:0;">
+        </div>
+      </div>
+    </div>
+    <button class="btn" onclick="toggleNovoClienteImport()" id="imp-btn-novo-cliente" style="font-size:11px;padding:4px 10px;margin-bottom:14px;background:var(--bg2);color:var(--muted);border:1px solid var(--border);">+ Criar novo cliente</button>
+
+    <!-- PET -->
+    <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🐶 Pet</div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div class="form-group">
+        <label class="form-label">Nome do pet *</label>
+        <input class="modal-input" id="imp-pet-nome" type="text" placeholder="Ex: Thor" style="margin:0;">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Raça</label>
+        <input class="modal-input" id="imp-pet-raca" type="text" placeholder="Ex: Golden Retriever" style="margin:0;">
+      </div>
+    </div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      <div class="form-group">
+        <label class="form-label">Porte *</label>
+        <select class="modal-input" id="imp-pet-porte" onchange="setPorteImportFromPet(this.value)" style="margin:0;">
+          <option value="">Selecione</option>
+          <option value="PP">PP</option>
+          <option value="P">P</option>
+          <option value="M">M</option>
+          <option value="G">G</option>
+          <option value="GG">GG</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Pelagem</label>
+        <select class="modal-input" id="imp-pet-pelagem" style="margin:0;">
+          <option value="curto">Curto</option>
+          <option value="longo">Longo</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- PACOTE -->
+    <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🎟️ Pacote</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <span style="font-size:13px;color:var(--muted);">Porte para preço:</span>
+      <button class="btn-porte active" data-imp-porte="p" onclick="setPorteImport('p')">P</button>
+      <button class="btn-porte" data-imp-porte="m" onclick="setPorteImport('m')">M</button>
+      <button class="btn-porte" data-imp-porte="g" onclick="setPorteImport('g')">G</button>
+    </div>
+
+    <!-- Cabeçalho da tabela de serviços -->
+    <div style="display:grid;grid-template-columns:1fr 70px 70px;gap:6px;font-size:11px;color:var(--muted);font-weight:600;padding:0 4px;margin-bottom:4px;">
+      <span>Serviço</span><span style="text-align:center;">Contratado</span><span style="text-align:center;">Já usado</span>
+    </div>
+    <div id="imp-servicos-list" style="margin-bottom:14px;"></div>
+
+    <div id="imp-aviso-sem-preco" style="display:none;font-size:12px;color:var(--orange);margin-bottom:8px;"></div>
+    <div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <span style="color:var(--muted);">Total de tabela</span>
+        <span id="imp-total-tabela" style="font-weight:600;">R$ 0</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;">
+        <span style="color:var(--muted);">Sugestão (−10%)</span>
+        <span id="imp-sugestao" style="color:var(--blue);font-weight:600;">R$ 0</span>
+      </div>
+    </div>
+
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div class="form-group">
+        <label class="form-label">Valor cobrado (R$) *</label>
+        <input class="modal-input" id="imp-valor" type="number" min="0" step="0.01" placeholder="0,00" oninput="impValorEditado=true" style="margin:0;">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Pagamento</label>
+        <select class="modal-input" id="imp-pagamento" style="margin:0;">
+          <option value="pix">PIX</option>
+          <option value="cartao_credito">Cartão crédito</option>
+          <option value="cartao_debito">Cartão débito</option>
+          <option value="dinheiro">Dinheiro</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:18px;">
+      <label class="form-label">Data de adesão *</label>
+      <input class="modal-input" id="imp-data" type="date" style="margin:0;">
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <button class="btn" onclick="confirmarImportarPacote()" style="flex:1;background:var(--blue);color:#fff;font-weight:700;">Registrar pacote</button>
+      <button class="btn btn-modal-cancel" onclick="closeModal('modalImportarPacote')" style="padding:10px 18px;">Cancelar</button>
+    </div>
   </div>
 </div>
 
@@ -4149,6 +4270,245 @@ async function confirmarPacote() {
   }
 }
 
+
+// =====================
+// IMPORTAR PACOTE LEGADO
+// =====================
+let impPorteAtual = 'p';
+let impValorEditado = false;
+
+function abrirImportarPacote() {
+  impPorteAtual = 'p';
+  impValorEditado = false;
+  document.getElementById('imp-cliente-busca').value = '';
+  document.getElementById('imp-cliente-id').value = '';
+  document.getElementById('imp-cliente-selecionado').style.display = 'none';
+  document.getElementById('imp-cliente-dropdown').style.display = 'none';
+  document.getElementById('imp-novo-cliente-campos').style.display = 'none';
+  document.getElementById('imp-nome-cliente').value = '';
+  document.getElementById('imp-tel-cliente').value = '';
+  document.getElementById('imp-pet-nome').value = '';
+  document.getElementById('imp-pet-raca').value = '';
+  document.getElementById('imp-pet-porte').value = '';
+  document.getElementById('imp-pet-pelagem').value = 'curto';
+  document.getElementById('imp-valor').value = '';
+  document.getElementById('imp-data').value = new Date().toISOString().split('T')[0];
+  document.querySelectorAll('[data-imp-porte]').forEach(b => b.classList.toggle('active', b.dataset.impPorte === 'p'));
+  if (pacoteServicos.length) {
+    renderizarServicosImport();
+  } else {
+    sbGet('tenant_servicos', `tenant_id=eq.${TENANT_ID}&ativo=eq.true&order=categoria,nome`)
+      .then(data => { pacoteServicos = data || []; renderizarServicosImport(); });
+  }
+  document.getElementById('modalImportarPacote').classList.add('open');
+}
+
+function toggleNovoClienteImport() {
+  const campos = document.getElementById('imp-novo-cliente-campos');
+  const btn = document.getElementById('imp-btn-novo-cliente');
+  const aberto = campos.style.display !== 'none';
+  campos.style.display = aberto ? 'none' : '';
+  btn.textContent = aberto ? '+ Criar novo cliente' : '− Cancelar';
+  if (!aberto) {
+    document.getElementById('imp-cliente-id').value = '';
+    document.getElementById('imp-cliente-selecionado').style.display = 'none';
+  }
+}
+
+function buscarClienteImport(q) {
+  const dropdown = document.getElementById('imp-cliente-dropdown');
+  if (!q || q.length < 2) { dropdown.style.display = 'none'; return; }
+  const qn = q.toLowerCase();
+  const matches = todosClientes.filter(c =>
+    c.nome?.toLowerCase().includes(qn) || String(c.telefone||'').includes(q)
+  ).slice(0, 6);
+  if (!matches.length) { dropdown.style.display = 'none'; return; }
+  dropdown.innerHTML = matches.map(c =>
+    `<div onclick="selecionarClienteImport('${c.id}','${c.nome.replace(/'/g,"\\'")}','${c.telefone||''}')"
+      style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      <span style="font-weight:600;">${c.nome}</span>
+      <span style="color:var(--muted);margin-left:8px;font-size:12px;">${c.telefone||''}</span>
+    </div>`
+  ).join('');
+  dropdown.style.display = '';
+}
+
+function selecionarClienteImport(id, nome, tel) {
+  document.getElementById('imp-cliente-id').value = id;
+  document.getElementById('imp-cliente-busca').value = nome;
+  document.getElementById('imp-cliente-dropdown').style.display = 'none';
+  const sel = document.getElementById('imp-cliente-selecionado');
+  sel.textContent = `✓ ${nome} · ${tel}`;
+  sel.style.display = '';
+  document.getElementById('imp-novo-cliente-campos').style.display = 'none';
+  document.getElementById('imp-btn-novo-cliente').textContent = '+ Criar novo cliente';
+}
+
+function setPorteImportFromPet(porte) {
+  const p = porte === 'PP' || porte === 'P' ? 'p' : porte === 'M' ? 'm' : porte === 'G' || porte === 'GG' ? 'g' : null;
+  if (p) setPorteImport(p);
+}
+
+function setPorteImport(porte) {
+  impPorteAtual = porte;
+  document.querySelectorAll('[data-imp-porte]').forEach(b => b.classList.toggle('active', b.dataset.impPorte === porte));
+  renderizarServicosImport();
+}
+
+function renderizarServicosImport() {
+  const el = document.getElementById('imp-servicos-list');
+  if (!el) return;
+  const cats = { banho: 'Banho e Tosa', tosa: 'Tosa', adicional: 'Adicionais' };
+  const grupos = {};
+  for (const s of pacoteServicos) {
+    const cat = s.categoria || 'adicional';
+    if (!grupos[cat]) grupos[cat] = [];
+    grupos[cat].push(s);
+  }
+  let html = '';
+  for (const [cat, srvs] of Object.entries(grupos)) {
+    html += `<div style="font-size:11px;color:var(--muted);font-weight:600;padding:6px 0 3px;border-top:1px solid var(--border);margin-top:4px;">${cats[cat]||cat}</div>`;
+    for (const s of srvs) {
+      const preco = getPrecoServico(s, impPorteAtual);
+      const precoStr = preco != null ? `R$${preco}` : '—';
+      html += `<div style="display:grid;grid-template-columns:1fr 70px 70px;gap:6px;align-items:center;padding:3px 0;">
+        <span style="font-size:12px;">${s.nome} <span style="color:var(--muted);font-size:11px;">${precoStr}</span></span>
+        <input type="number" class="pacote-qty imp-qty-total" min="0" value="0" data-id="${s.id}" data-nome="${s.nome}" data-preco="${preco||0}"
+          style="width:100%;text-align:center;border:1px solid var(--border);border-radius:6px;padding:3px;font-size:12px;background:var(--bg);"
+          oninput="calcularTotalImport()">
+        <input type="number" class="imp-qty-usado" min="0" value="0" data-id="${s.id}"
+          style="width:100%;text-align:center;border:1px solid var(--border);border-radius:6px;padding:3px;font-size:12px;background:var(--bg);color:var(--orange);"
+          oninput="calcularTotalImport()">
+      </div>`;
+    }
+  }
+  el.innerHTML = html;
+  calcularTotalImport();
+}
+
+function calcularTotalImport() {
+  let total = 0;
+  const semPreco = [];
+  document.querySelectorAll('.imp-qty-total').forEach(input => {
+    const qty = parseInt(input.value) || 0;
+    if (!qty) return;
+    const preco = parseFloat(input.dataset.preco) || 0;
+    if (preco) total += preco * qty;
+    else semPreco.push(input.dataset.nome);
+  });
+  const sugestao = Math.round(total * 0.9);
+  document.getElementById('imp-total-tabela').textContent = `R$ ${total.toLocaleString('pt-BR')}`;
+  document.getElementById('imp-sugestao').textContent = `R$ ${sugestao.toLocaleString('pt-BR')}`;
+  const aviso = document.getElementById('imp-aviso-sem-preco');
+  if (semPreco.length) { aviso.style.display = ''; aviso.textContent = `⚠️ Sob avaliação (não incluso): ${semPreco.join(', ')}`; }
+  else aviso.style.display = 'none';
+  if (!impValorEditado) document.getElementById('imp-valor').value = sugestao || '';
+}
+
+async function confirmarImportarPacote() {
+  // Validar cliente
+  let clienteId = document.getElementById('imp-cliente-id').value;
+  const novoClienteAberto = document.getElementById('imp-novo-cliente-campos').style.display !== 'none';
+
+  if (!clienteId && novoClienteAberto) {
+    const nome = document.getElementById('imp-nome-cliente').value.trim();
+    const tel  = document.getElementById('imp-tel-cliente').value.trim();
+    if (!nome || !tel) { showToast('Preencha nome e WhatsApp do cliente', 'error'); return; }
+    try {
+      const res = await fetch(`${N8N_CADASTRO}/novo-cliente`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_id: TENANT_ID, nome, telefone: normalizarTelefone(tel) })
+      });
+      if (res.ok) {
+        const r = await res.json();
+        clienteId = r?.id || r?.[0]?.id || null;
+        if (clienteId) {
+          const novoC = { id: clienteId, nome, telefone: tel, pets: [] };
+          todosClientes.unshift(novoC);
+        }
+      }
+    } catch {}
+    if (!clienteId) { showToast('Erro ao criar cliente', 'error'); return; }
+  }
+
+  if (!clienteId) { showToast('Selecione ou crie um cliente', 'error'); return; }
+
+  // Validar e criar pet
+  const petNome = document.getElementById('imp-pet-nome').value.trim();
+  const petPorte = document.getElementById('imp-pet-porte').value;
+  if (!petNome || !petPorte) { showToast('Preencha nome e porte do pet', 'error'); return; }
+
+  let petId = null;
+  try {
+    const res = await fetch(`${N8N_CADASTRO}/novo-pet`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant_id: TENANT_ID, cliente_id: clienteId,
+        nome: petNome, raca: document.getElementById('imp-pet-raca').value,
+        porte: petPorte, pelagem: document.getElementById('imp-pet-pelagem').value,
+        especie: 'canina', historico: [], sexo: 'M'
+      })
+    });
+    if (res.ok) { const r = await res.json(); petId = r?.[0]?.id || r?.id || null; }
+  } catch {}
+
+  // Montar saldos
+  const saldos = {};
+  let totalBanhos = 0, totalTosasHig = 0;
+  const usados = [];
+  document.querySelectorAll('.imp-qty-total').forEach(input => {
+    const qty = parseInt(input.value) || 0;
+    if (!qty) return;
+    const id = input.dataset.id;
+    const nome = input.dataset.nome;
+    const preco = parseFloat(input.dataset.preco) || 0;
+    const usadoEl = document.querySelector(`.imp-qty-usado[data-id="${id}"]`);
+    const usado = Math.min(parseInt(usadoEl?.value) || 0, qty);
+    const restante = qty - usado;
+    saldos[id] = { nome, quantidade: qty, restante, preco_unit: preco };
+    if (nome.toLowerCase().includes('banho') && !nome.toLowerCase().includes('tosa')) totalBanhos += qty;
+    if (nome.toLowerCase().includes('higiênica')) totalTosasHig += qty;
+    if (usado > 0) usados.push({ id, nome, usado });
+  });
+
+  if (!Object.keys(saldos).length) { showToast('Adicione pelo menos um serviço', 'error'); return; }
+
+  const dataAdesao = document.getElementById('imp-data').value;
+  const valorPacote = parseFloat(document.getElementById('imp-valor').value) || 0;
+  const pagamento = document.getElementById('imp-pagamento').value;
+
+  const dataExp = new Date(dataAdesao || Date.now());
+  dataExp.setMonth(dataExp.getMonth() + 4);
+
+  try {
+    const pac = await sbPost('cliente_pacotes', {
+      tenant_id: TENANT_ID, cliente_id: clienteId,
+      saldos, porte: impPorteAtual.toUpperCase(),
+      saldo_banhos: totalBanhos, saldo_tosas_higienicas: totalTosasHig,
+      valor_pago: valorPacote, forma_pagamento: pagamento,
+      data_adesao: dataAdesao, data_expiracao: dataExp.toISOString().split('T')[0], ativo: true
+    });
+    const pacoteId = Array.isArray(pac) ? pac[0]?.id : pac?.id;
+
+    // Registrar sessões já usadas no histórico
+    if (pacoteId && usados.length) {
+      for (const u of usados) {
+        await sbPost('historico_uso_pacotes', {
+          tenant_id: TENANT_ID, cliente_pacote_id: pacoteId,
+          servico_id: u.id, servico_nome: u.nome,
+          quantidade: u.usado, porte_usado: impPorteAtual.toUpperCase(),
+          criado_em: dataAdesao ? new Date(dataAdesao).toISOString() : new Date().toISOString()
+        });
+      }
+    }
+
+    closeModal('modalImportarPacote');
+    showToast(`Pacote registrado! ${petNome} · R$ ${valorPacote.toLocaleString('pt-BR')} ✓`, 'success');
+  } catch(e) {
+    showToast('Erro ao registrar pacote', 'error');
+  }
+}
 
 // =====================
 // NOVO PET
