@@ -1,0 +1,4 @@
+flask
+flask-cors
+python-escpos
+pywin32
