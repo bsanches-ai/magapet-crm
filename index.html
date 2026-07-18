@@ -1752,6 +1752,7 @@ async function loadAgenda() {
     console.warn('loadAgenda error:', e.message);
     agendamentos = todosAgendamentos.filter(a => a.data_hora === dateStr);
   }
+  await enriquecerComPacotes();
   renderAgenda();
   updateSummary();
   loadNotifications();
@@ -1838,6 +1839,35 @@ function filtrarAgenda(val) {
       renderAgenda();
     }
   }, 400);
+}
+
+async function enriquecerComPacotes() {
+  try {
+    const pendentes = agendamentos.filter(a =>
+      !['entregue', 'cancelado'].includes(a.status) && a.cliente_id && a.servico_id && !a.saldo_pacote
+    );
+    if (!pendentes.length) return;
+
+    const ids = [...new Set(pendentes.map(a => a.cliente_id))];
+    const pacotes = await sbGet('cliente_pacotes',
+      `cliente_id=in.(${ids.join(',')})&ativo=eq.true&select=cliente_id,saldos,porte`
+    );
+    if (!pacotes || !pacotes.length) return;
+
+    // mapa: cliente_id → Set de servico_ids com saldo > 0
+    const mapa = {};
+    for (const pac of pacotes) {
+      if (!mapa[pac.cliente_id]) mapa[pac.cliente_id] = new Set();
+      for (const [srvId, val] of Object.entries(pac.saldos || {})) {
+        const rest = typeof val === 'object' ? val.restante : val;
+        if (rest > 0) mapa[pac.cliente_id].add(srvId);
+      }
+    }
+
+    for (const ag of agendamentos) {
+      if (mapa[ag.cliente_id]?.has(ag.servico_id)) ag._temPacoteJSONB = true;
+    }
+  } catch(e) {}
 }
 
 function renderAgenda() {
@@ -1958,7 +1988,7 @@ const entregueBtn = statusReal === 'pronto'
             </div>` : ''}
           </div>
           ${ag.pet_porte && getDuracao(ag.servico, ag.pet_porte) ? `<div style="font-size:12px;color:var(--gold);margin-top:2px;">⏱ ${getDuracao(ag.servico, ag.pet_porte)}</div>` : ''}
-          ${ag.saldo_pacote ? `<div style="font-size:11px;color:var(--green);margin-top:2px;">🎟️ Coberto pelo pacote</div>` : ''}
+          ${(ag.saldo_pacote || ag._temPacoteJSONB) ? `<div style="font-size:11px;color:var(--green);margin-top:2px;">🎟️ Coberto pelo pacote</div>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           ${ag.desconto ? `<span style="font-size:11px;color:var(--green);text-decoration:line-through;opacity:0.6">${formatMoney(valorTotal + ag.desconto)}</span>` : ''}
@@ -1978,9 +2008,13 @@ const entregueBtn = statusReal === 'pronto'
                     + `<span style="font-size:12px;font-weight:700;color:var(--blue);">= ${formatMoney(totalComDesc)}</span>`;
                 })()}
               </div>`
-            : ag.saldo_pacote
+            : (ag.saldo_pacote || ag._temPacoteJSONB)
               ? `<span class="service-value" style="color:var(--green);">${(() => {
-                  // Desconta tosa higiênica se coberta pelo pacote
+                  if (ag._temPacoteJSONB) {
+                    // serviço coberto pelo pacote JSONB → valor do serviço = 0, só adicionais
+                    return formatMoney(Math.max(0, (ag.adicionais_valor || 0) - (ag.desconto || 0)));
+                  }
+                  // legado: desconta tosa higiênica se coberta pelo pacote
                   let val = ag.adicionais_valor || 0;
                   if (ag.saldo_tosa_higienica > 0) {
                     const tosaHig = ag.adicionais?.find(a => { const n = typeof a === 'string' ? a : a.nome; return _eTosaHigienicaComum(n); });
@@ -2689,7 +2723,7 @@ async function marcarPronto(id) {
   updateSummary();
 }
 
-async function marcarEntregue(id, usouPacote = false) {
+async function marcarEntregue(id, usouPacote = false, legacyN8nDebit = false) {
   const ag = agendamentos.find(a => a.id === id);
   if (!ag) return;
 
@@ -2710,7 +2744,7 @@ async function marcarEntregue(id, usouPacote = false) {
         pet_nome: ag.pet_nome,
         pet_sexo: ag.pet_sexo,
         tutor_telefone: ag.tutor_telefone,
-        usou_pacote: false,
+        usou_pacote: legacyN8nDebit,
         google_link: GOOGLE_LINK_CONFIG,
         instagram: INSTAGRAM_CONFIG,
         valor_total: valorTotal
@@ -2753,7 +2787,21 @@ async function checarEntregue(id) {
       }
     }
 
-    if (!pacoteEncontrado) { marcarEntregue(id); return; }
+    if (!pacoteEncontrado) {
+      // fallback: pacote legado (só saldo_banhos)
+      if (ag.saldo_pacote > 0) {
+        const valorServico = ag.valor || 0;
+        const msg = `🎟️ Pacote disponível!\n\nBanhos restantes: ${ag.saldo_pacote}\n\nSem pacote: ${formatMoney(valorServico)}\nCom pacote: ${formatMoney(0)}\n\nUsar saldo do pacote?`;
+        if (confirm(msg)) {
+          marcarEntregue(id, true, true); // legacyN8nDebit: n8n debita saldo_banhos
+        } else {
+          marcarEntregue(id, false, false);
+        }
+        return;
+      }
+      marcarEntregue(id);
+      return;
+    }
 
     const valorServico = ag.valor || 0;
     const restante = entryEncontrada.restante;
