@@ -3796,7 +3796,11 @@ async function carregarPacotesNaFicha(clienteId) {
       return `<div style="${bgStyle}border-radius:10px;padding:12px;margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <div style="font-size:13px;font-weight:600;color:var(--cream);">🎟️ ${tmpl.nome || 'Pacote personalizado'}${porteTag}</div>
-          <div style="font-size:11px;color:var(--muted);">${p.ativo ? 'válido até ' : 'encerrado · '}${dataExp}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="font-size:11px;color:var(--muted);">${p.ativo ? 'válido até ' : 'encerrado · '}${dataExp}</div>
+            <button onclick="abrirEditarPacote('${p.id}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;opacity:.7;" title="Editar">✏️</button>
+            <button onclick="excluirPacote('${p.id}', ${p.ativo})" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;opacity:.7;" title="${p.ativo ? 'Excluir' : 'Reativar'}">🗑️</button>
+          </div>
         </div>
         ${saldoRows}
       </div>`;
@@ -3824,6 +3828,122 @@ async function carregarPacotesNaFicha(clienteId) {
 
     el.innerHTML = html;
   } catch(e) { el.innerHTML = ''; }
+}
+
+// ---- EDITAR / EXCLUIR PACOTE ----
+let _pacoteEditandoId = null;
+let _pacoteEditandoClienteId = null;
+
+async function abrirEditarPacote(pacoteId) {
+  const pac = await sbGet('cliente_pacotes', `id=eq.${pacoteId}&select=id,saldos,porte,data_adesao,data_expiracao,valor_pago,ativo,cliente_id&limit=1`);
+  if (!pac || !pac.length) return;
+  const p = pac[0];
+  _pacoteEditandoId = pacoteId;
+  _pacoteEditandoClienteId = p.cliente_id;
+
+  const saldos = p.saldos || {};
+  const entries = Object.entries(saldos);
+
+  let saldoFields = '';
+  if (entries.length) {
+    saldoFields = entries.map(([id, val]) => {
+      const isObj = typeof val === 'object';
+      const nome = isObj ? val.nome : id;
+      const rest = isObj ? val.restante : val;
+      const total = isObj ? val.quantidade : val;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--modal-border, #e0e4ee);">
+        <span style="flex:1;font-size:13px;">${nome}</span>
+        <span style="font-size:11px;color:#888;">${total} total · restante:</span>
+        <input type="number" min="0" max="${total}" value="${rest}" data-saldo-id="${id}"
+          style="width:52px;text-align:center;border:1px solid #ccc;border-radius:6px;padding:4px;font-size:13px;">
+      </div>`;
+    }).join('');
+  }
+
+  const dataAdStr = p.data_adesao ? p.data_adesao.split('T')[0] : '';
+  const dataExpStr = p.data_expiracao ? p.data_expiracao.split('T')[0] : '';
+
+  const html = `
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;color:#888;font-weight:600;">Porte</label>
+      <select id="epPorte" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:8px;margin-top:4px;font-size:13px;">
+        ${['P','M','G'].map(o => `<option value="${o}" ${(p.porte||'').toUpperCase()===o?'selected':''}>${o}</option>`).join('')}
+        <option value="" ${!p.porte?'selected':''}>— sem porte</option>
+      </select>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;color:#888;font-weight:600;">Data de adesão</label>
+      <input type="date" id="epAdesao" value="${dataAdStr}" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:8px;margin-top:4px;font-size:13px;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;color:#888;font-weight:600;">Data de expiração</label>
+      <input type="date" id="epExp" value="${dataExpStr}" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:8px;margin-top:4px;font-size:13px;">
+    </div>
+    ${entries.length ? `<div style="margin-bottom:4px;font-size:12px;color:#888;font-weight:600;">Saldos por serviço</div>${saldoFields}` : ''}
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button onclick="salvarEdicaoPacote()" style="flex:1;padding:11px;background:#1a2540;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Salvar</button>
+      <button onclick="fecharModal()" style="padding:11px 16px;background:#f0f2f7;color:#4a5a78;border:none;border-radius:8px;font-size:14px;cursor:pointer;">Cancelar</button>
+    </div>`;
+
+  abrirModal('Editar pacote', html);
+}
+
+async function salvarEdicaoPacete() { await salvarEdicaoPacote(); }
+async function salvarEdicaoPacote() {
+  if (!_pacoteEditandoId) return;
+  const porte = document.getElementById('epPorte')?.value || null;
+  const dataAdesao = document.getElementById('epAdesao')?.value || null;
+  const dataExp = document.getElementById('epExp')?.value || null;
+
+  // Ler saldos atualizados dos inputs
+  const pac = await sbGet('cliente_pacotes', `id=eq.${_pacoteEditandoId}&select=saldos&limit=1`);
+  const saldosAtuais = (pac && pac[0]?.saldos) ? JSON.parse(JSON.stringify(pac[0].saldos)) : {};
+
+  document.querySelectorAll('[data-saldo-id]').forEach(input => {
+    const sid = input.dataset.saldoId;
+    const novoRest = parseInt(input.value) || 0;
+    const entry = saldosAtuais[sid];
+    if (typeof entry === 'object') {
+      saldosAtuais[sid] = { ...entry, restante: novoRest };
+    } else {
+      saldosAtuais[sid] = novoRest;
+    }
+  });
+
+  const todosZerados = Object.values(saldosAtuais).every(v => (typeof v==='object'?v.restante:v) <= 0);
+  const patch = {
+    saldos: saldosAtuais,
+    porte: porte || null,
+    ...(dataAdesao ? { data_adesao: dataAdesao } : {}),
+    ...(dataExp ? { data_expiracao: dataExp } : { data_expiracao: null }),
+    ativo: !todosZerados
+  };
+
+  try {
+    await sbPatch('cliente_pacotes', `id=eq.${_pacoteEditandoId}`, patch);
+    fecharModal();
+    showToast('Pacote atualizado', 'success');
+    if (_pacoteEditandoClienteId) carregarPacotesNaFicha(_pacoteEditandoClienteId);
+  } catch {
+    showToast('Erro ao salvar', 'error');
+  }
+}
+
+async function excluirPacote(pacoteId, ativo) {
+  const acao = ativo ? 'excluir' : 'reativar';
+  if (!confirm(`Deseja ${acao} este pacote?`)) return;
+  try {
+    if (ativo) {
+      await sbPatch('cliente_pacotes', `id=eq.${pacoteId}`, { ativo: false });
+      showToast('Pacote excluído', 'success');
+    } else {
+      await sbPatch('cliente_pacotes', `id=eq.${pacoteId}`, { ativo: true });
+      showToast('Pacote reativado', 'success');
+    }
+    // Reload ficha packages
+    const pac = await sbGet('cliente_pacotes', `id=eq.${pacoteId}&select=cliente_id&limit=1`);
+    if (pac && pac[0]?.cliente_id) carregarPacotesNaFicha(pac[0].cliente_id);
+  } catch { showToast('Erro', 'error'); }
 }
 
 function badge(ok, sim, nao) {
