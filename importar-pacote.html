@@ -125,7 +125,11 @@
     <div class="section-label">👤 Cliente</div>
     <div class="field">
       <label>Buscar cliente cadastrado</label>
-      <input type="text" id="cBusca" placeholder="Nome ou telefone..." oninput="buscarCliente(this.value)" autocomplete="off">
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="cBusca" placeholder="Nome ou telefone..." autocomplete="off" style="flex:1;"
+          onkeydown="if(event.key==='Enter') buscarCliente()">
+        <button onclick="buscarCliente()" style="padding:10px 16px;background:var(--blue);color:#1a2030;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Buscar</button>
+      </div>
       <div class="dropdown" id="cDropdown"></div>
       <div class="tag-sel" id="cSel"></div>
       <input type="hidden" id="cId">
@@ -227,7 +231,6 @@ const N8N_CAD   = 'https://n8n-eogk.srv1598428.hstgr.cloud/webhook/crm-cadastro-
 let servicos = [];
 let porteAtual = 'p';
 let valorEditado = false;
-let clientes = [];
 
 async function sbGet(table, params = '') {
   const r = await fetch(`${SB_URL}/rest/v1/${table}?${params}`, {
@@ -265,28 +268,36 @@ function getPreco(srv, porte) {
 // Carregar clientes e serviços
 async function init() {
   document.getElementById('dataAdesao').value = new Date().toISOString().split('T')[0];
-  const [srvs, cls] = await Promise.all([
-    sbGet('tenant_servicos', `tenant_id=eq.${TENANT_ID}&ativo=eq.true&order=categoria,nome`),
-    sbGet('clientes', `tenant_id=eq.${TENANT_ID}&select=id,nome,telefone&order=nome&limit=300`)
-  ]);
+  const srvs = await sbGet('tenant_servicos', `tenant_id=eq.${TENANT_ID}&ativo=eq.true&order=categoria,nome`);
   servicos = srvs || [];
-  clientes = cls || [];
   renderServicos();
 }
 
 // CLIENTE
-function buscarCliente(q) {
+async function buscarCliente() {
+  const q = (document.getElementById('cBusca').value || '').trim();
   const dd = document.getElementById('cDropdown');
-  if (!q || q.length < 2) { dd.style.display = 'none'; return; }
-  const qn = q.toLowerCase();
-  const m = clientes.filter(c => c.nome?.toLowerCase().includes(qn) || String(c.telefone || '').includes(q)).slice(0, 6);
-  if (!m.length) { dd.style.display = 'none'; return; }
-  dd.innerHTML = m.map(c =>
-    `<div class="dropdown-item" onclick="selecionarCliente('${c.id}','${c.nome.replace(/'/g,"\\'")}','${c.telefone||''}')">
-      <strong>${c.nome}</strong> <span style="color:var(--muted);font-size:12px;">${c.telefone||''}</span>
-    </div>`
-  ).join('');
+  if (q.length < 2) { dd.innerHTML = '<div class="dropdown-item" style="color:var(--muted)">Digite ao menos 2 caracteres</div>'; dd.style.display = ''; return; }
+  dd.innerHTML = '<div class="dropdown-item" style="color:var(--muted)">Buscando...</div>';
   dd.style.display = '';
+  try {
+    const isPhone = /^\d+$/.test(q);
+    const filter = isPhone
+      ? `tenant_id=eq.${TENANT_ID}&telefone=ilike.*${q}*&select=id,nome,telefone&limit=8`
+      : `tenant_id=eq.${TENANT_ID}&nome=ilike.*${q}*&select=id,nome,telefone&order=nome&limit=8`;
+    const m = await sbGet('clientes', filter);
+    if (!m || !m.length) {
+      dd.innerHTML = '<div class="dropdown-item" style="color:var(--muted)">Nenhum cliente encontrado</div>';
+      return;
+    }
+    dd.innerHTML = m.map(c =>
+      `<div class="dropdown-item" onclick="selecionarCliente('${c.id}','${(c.nome||'').replace(/'/g,"\\'")}','${c.telefone||''}')">
+        <strong>${c.nome}</strong> <span style="color:var(--muted);font-size:12px;">${c.telefone||''}</span>
+      </div>`
+    ).join('');
+  } catch(e) {
+    dd.innerHTML = '<div class="dropdown-item" style="color:#d95f52">Erro ao buscar. Tente novamente.</div>';
+  }
 }
 function selecionarCliente(id, nome, tel) {
   document.getElementById('cId').value = id;
