@@ -213,10 +213,10 @@
 
   <!-- SUCESSO -->
   <div class="success-state" id="successState">
-    <div class="success-icon">✅</div>
-    <div class="success-title">Pacote registrado!</div>
+    <div class="success-icon">🐾</div>
+    <div class="success-title">Pacote criado com sucesso!</div>
     <div class="success-sub" id="successMsg"></div>
-    <button class="btn-novo" onclick="resetForm()">Registrar outro pacote</button>
+    <button class="btn-primary" onclick="resetForm()" style="max-width:280px;margin:0 auto;">+ Cadastrar novo pacote</button>
   </div>
 </div>
 
@@ -508,7 +508,7 @@ async function salvar() {
     // Sucesso
     document.getElementById('formState').style.display = 'none';
     const s = document.getElementById('successState');
-    s.style.display = '';
+    s.style.display = 'block';
     document.getElementById('successMsg').textContent =
       `${petNome} (${document.getElementById('cBusca').value || document.getElementById('cNome').value}) · R$ ${valorPacote.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
@@ -521,7 +521,7 @@ async function salvar() {
 }
 
 function resetForm() {
-  document.getElementById('formState').style.display = '';
+  document.getElementById('formState').style.display = 'block';
   document.getElementById('successState').style.display = 'none';
   document.getElementById('cBusca').value = '';
   document.getElementById('cId').value = '';
