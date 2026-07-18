@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MagaPet — Registrar Pacote</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1117; --bg2: #181c27; --bg3: #1e2333;
+    --border: #2a3050; --blue: #7eb8f7; --green: #4caf7d;
+    --orange: #e8903a; --gold: #c9a84c; --cream: #e8dfd0;
+    --muted: #6b7a99; --text: #c8d0e0;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', system-ui, sans-serif; min-height: 100vh; padding: 24px 16px 48px; }
+  .page { max-width: 520px; margin: 0 auto; }
+  .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+  .logo-icon { font-size: 28px; }
+  .logo-name { font-size: 18px; font-weight: 700; color: var(--cream); }
+  .logo-sub { font-size: 12px; color: var(--muted); }
+  h1 { font-size: 20px; font-weight: 700; color: var(--cream); margin-bottom: 4px; }
+  .sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+  .section-label { font-size: 11px; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; margin-top: 20px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+  input, select {
+    width: 100%; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-size: 14px; padding: 10px 12px; outline: none;
+    font-family: inherit; transition: border-color .15s;
+  }
+  input:focus, select:focus { border-color: var(--blue); }
+  input::placeholder { color: var(--muted); }
+  .field { margin-bottom: 12px; position: relative; }
+  .dropdown {
+    display: none; position: absolute; top: 100%; left: 0; right: 0;
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    max-height: 160px; overflow-y: auto; z-index: 100;
+    box-shadow: 0 4px 16px rgba(0,0,0,.3);
+  }
+  .dropdown-item {
+    padding: 10px 14px; cursor: pointer; font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .dropdown-item:hover { background: var(--bg3); }
+  .dropdown-item:last-child { border-bottom: none; }
+  .tag-sel {
+    display: none; margin-top: 6px; font-size: 12px; color: var(--green);
+    font-weight: 600; padding: 6px 10px; background: rgba(76,175,125,.08); border-radius: 6px;
+  }
+  .toggle-novo { font-size: 11px; padding: 4px 10px; background: var(--bg2); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; margin-top: 6px; }
+  .novo-campos { display: none; margin-top: 10px; }
+
+  .btn-porte {
+    padding: 5px 16px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg3); color: var(--muted); font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all .15s;
+  }
+  .btn-porte.active { background: var(--blue); color: #1a2030; border-color: var(--blue); }
+
+  .srv-header { display: grid; grid-template-columns: 1fr 72px 72px; gap: 6px; font-size: 11px; color: var(--muted); font-weight: 600; padding: 0 2px; margin-bottom: 4px; }
+  .srv-header span:not(:first-child) { text-align: center; }
+  .srv-cat { font-size: 11px; color: var(--muted); font-weight: 600; padding: 8px 0 3px; border-top: 1px solid var(--border); margin-top: 4px; }
+  .srv-row { display: grid; grid-template-columns: 1fr 72px 72px; gap: 6px; align-items: center; padding: 3px 0; }
+  .srv-nome { font-size: 12px; color: var(--text); }
+  .srv-preco { font-size: 11px; color: var(--muted); }
+  .qty-input {
+    text-align: center; border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px; font-size: 13px; background: var(--bg);
+  }
+  .qty-usado { color: var(--orange); }
+
+  .summary {
+    background: var(--bg2); border-radius: 10px; padding: 12px 14px; margin: 14px 0;
+    font-size: 13px;
+  }
+  .summary-row { display: flex; justify-content: space-between; padding: 3px 0; }
+  .aviso { display: none; font-size: 12px; color: var(--orange); margin-bottom: 8px; }
+
+  .btn-primary {
+    width: 100%; padding: 14px; background: var(--blue); color: #1a2030;
+    border: none; border-radius: 10px; font-size: 15px; font-weight: 700;
+    cursor: pointer; font-family: inherit; transition: opacity .15s; margin-top: 8px;
+  }
+  .btn-primary:hover { opacity: .88; }
+  .btn-primary:disabled { opacity: .4; cursor: default; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 20px; font-size: 14px; font-weight: 600; color: var(--cream);
+    box-shadow: 0 4px 20px rgba(0,0,0,.4); transition: transform .3s; z-index: 999;
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error { border-color: #d95f52; color: #d95f52; }
+
+  .success-state { display: none; text-align: center; padding: 40px 20px; }
+  .success-icon { font-size: 56px; margin-bottom: 16px; }
+  .success-title { font-size: 20px; font-weight: 700; color: var(--cream); margin-bottom: 8px; }
+  .success-sub { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  .btn-novo { padding: 10px 24px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .btn-novo:hover { border-color: var(--blue); color: var(--blue); }
+
+  @media (max-width: 480px) {
+    .form-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="logo">
+    <div class="logo-icon">🐾</div>
+    <div>
+      <div class="logo-name">MagaPet</div>
+      <div class="logo-sub">Registro de pacotes</div>
+    </div>
+  </div>
+
+  <div id="formState">
+    <h1>📦 Registrar pacote existente</h1>
+    <div class="sub">Preencha os dados do cliente, do pet e do pacote que já existia antes do sistema.</div>
+
+    <!-- CLIENTE -->
+    <div class="section-label">👤 Cliente</div>
+    <div class="field">
+      <label>Buscar cliente cadastrado</label>
+      <input type="text" id="cBusca" placeholder="Nome ou telefone..." oninput="buscarCliente(this.value)" autocomplete="off">
+      <div class="dropdown" id="cDropdown"></div>
+      <div class="tag-sel" id="cSel"></div>
+      <input type="hidden" id="cId">
+    </div>
+    <button class="toggle-novo" onclick="toggleNovo()" id="btnNovo">+ Novo cliente</button>
+    <div class="novo-campos" id="novoCampos">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Preencha para criar um novo cliente:</div>
+      <div class="form-grid">
+        <div class="field"><label>Nome *</label><input type="text" id="cNome" placeholder="Nome completo"></div>
+        <div class="field"><label>WhatsApp *</label><input type="tel" id="cTel" placeholder="(11) 99999-9999"></div>
+      </div>
+    </div>
+
+    <!-- PET -->
+    <div class="section-label">🐶 Pet</div>
+    <div class="form-grid">
+      <div class="field"><label>Nome do pet *</label><input type="text" id="pNome" placeholder="Ex: Thor"></div>
+      <div class="field"><label>Raça</label><input type="text" id="pRaca" placeholder="Ex: Golden Retriever"></div>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label>Porte *</label>
+        <select id="pPorte" onchange="onPortePetChange(this.value)">
+          <option value="">Selecione</option>
+          <option value="PP">PP</option>
+          <option value="P">P</option>
+          <option value="M">M</option>
+          <option value="G">G</option>
+          <option value="GG">GG</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Pelagem</label>
+        <select id="pPelagem">
+          <option value="curto">Curto</option>
+          <option value="longo">Longo</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- PACOTE -->
+    <div class="section-label">🎟️ Pacote</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <span style="font-size:12px;color:var(--muted);">Porte para preço:</span>
+      <button class="btn-porte active" data-porte="p" onclick="setPorte('p')">P</button>
+      <button class="btn-porte" data-porte="m" onclick="setPorte('m')">M</button>
+      <button class="btn-porte" data-porte="g" onclick="setPorte('g')">G</button>
+    </div>
+    <div class="srv-header">
+      <span>Serviço</span><span style="text-align:center">Contratado</span><span style="text-align:center">Já usado</span>
+    </div>
+    <div id="srvList"></div>
+    <div class="aviso" id="aviso"></div>
+    <div class="summary">
+      <div class="summary-row"><span style="color:var(--muted)">Total de tabela</span><span id="totalTabela" style="font-weight:600">R$ 0</span></div>
+      <div class="summary-row"><span style="color:var(--muted)">Sugestão (−10%)</span><span id="sugestao" style="color:var(--blue);font-weight:600">R$ 0</span></div>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Valor cobrado (R$) *</label><input type="number" id="valor" min="0" step="0.01" placeholder="0,00" oninput="valorEditado=true"></div>
+      <div class="field">
+        <label>Pagamento</label>
+        <select id="pagamento">
+          <option value="pix">PIX</option>
+          <option value="cartao_credito">Cartão crédito</option>
+          <option value="cartao_debito">Cartão débito</option>
+          <option value="dinheiro">Dinheiro</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Data de adesão *</label><input type="date" id="dataAdesao"></div>
+
+    <button class="btn-primary" id="btnSalvar" onclick="salvar()">Registrar pacote</button>
+  </div>
+
+  <!-- SUCESSO -->
+  <div class="success-state" id="successState">
+    <div class="success-icon">✅</div>
+    <div class="success-title">Pacote registrado!</div>
+    <div class="success-sub" id="successMsg"></div>
+    <button class="btn-novo" onclick="resetForm()">Registrar outro pacote</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const SB_URL    = 'https://asiybcvdbbooyscirycw.supabase.co';
+const SB_KEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzaXliY3ZkYmJvb3lzY2lyeWN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzYyMDAsImV4cCI6MjA5Mjk1MjIwMH0.B608ZQg9EiVYccIIXxgBHVvv3ee_G9RnmrxHuyKINaE';
+const N8N_CAD   = 'https://n8n-eogk.srv1598428.hstgr.cloud/webhook/crm-cadastro-001/crm-cadastro';
+
+let servicos = [];
+let porteAtual = 'p';
+let valorEditado = false;
+let clientes = [];
+
+async function sbGet(table, params = '') {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?${params}`, {
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` }
+  });
+  return r.json();
+}
+async function sbPost(table, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+function normalizarTel(tel) {
+  const l = String(tel).replace(/\D/g, '');
+  if (l.startsWith('55') && l.length >= 12) return l;
+  if (l.length >= 10 && l.length <= 11) return '55' + l;
+  return l;
+}
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+function getPreco(srv, porte) {
+  if (porte === 'p') return parseFloat(srv.preco_p) || null;
+  if (porte === 'm') return parseFloat(srv.preco_m_pelo_curto) || parseFloat(srv.preco_m_pelo_longo) || null;
+  if (porte === 'g') return parseFloat(srv.preco_g) || null;
+  return null;
+}
+
+// Carregar clientes e serviços
+async function init() {
+  document.getElementById('dataAdesao').value = new Date().toISOString().split('T')[0];
+  const [srvs, cls] = await Promise.all([
+    sbGet('tenant_servicos', `tenant_id=eq.${TENANT_ID}&ativo=eq.true&order=categoria,nome`),
+    sbGet('clientes', `tenant_id=eq.${TENANT_ID}&select=id,nome,telefone&order=nome&limit=300`)
+  ]);
+  servicos = srvs || [];
+  clientes = cls || [];
+  renderServicos();
+}
+
+// CLIENTE
+function buscarCliente(q) {
+  const dd = document.getElementById('cDropdown');
+  if (!q || q.length < 2) { dd.style.display = 'none'; return; }
+  const qn = q.toLowerCase();
+  const m = clientes.filter(c => c.nome?.toLowerCase().includes(qn) || String(c.telefone || '').includes(q)).slice(0, 6);
+  if (!m.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = m.map(c =>
+    `<div class="dropdown-item" onclick="selecionarCliente('${c.id}','${c.nome.replace(/'/g,"\\'")}','${c.telefone||''}')">
+      <strong>${c.nome}</strong> <span style="color:var(--muted);font-size:12px;">${c.telefone||''}</span>
+    </div>`
+  ).join('');
+  dd.style.display = '';
+}
+function selecionarCliente(id, nome, tel) {
+  document.getElementById('cId').value = id;
+  document.getElementById('cBusca').value = nome;
+  document.getElementById('cDropdown').style.display = 'none';
+  const sel = document.getElementById('cSel');
+  sel.textContent = `✓ ${nome} · ${tel}`;
+  sel.style.display = '';
+  document.getElementById('novoCampos').style.display = 'none';
+  document.getElementById('btnNovo').textContent = '+ Novo cliente';
+}
+function toggleNovo() {
+  const c = document.getElementById('novoCampos');
+  const aberto = c.style.display !== 'none';
+  c.style.display = aberto ? 'none' : '';
+  document.getElementById('btnNovo').textContent = aberto ? '+ Novo cliente' : '− Cancelar';
+  if (!aberto) {
+    document.getElementById('cId').value = '';
+    document.getElementById('cSel').style.display = 'none';
+  }
+}
+
+// PET
+function onPortePetChange(v) {
+  const map = { PP: 'p', P: 'p', M: 'm', G: 'g', GG: 'g' };
+  if (map[v]) setPorte(map[v]);
+}
+
+// PACOTE — porte e serviços
+function setPorte(p) {
+  porteAtual = p;
+  document.querySelectorAll('[data-porte]').forEach(b => b.classList.toggle('active', b.dataset.porte === p));
+  renderServicos();
+}
+function renderServicos() {
+  const cats = { banho: '🛁 Banho', tosa: '✂️ Tosa', adicional: '➕ Adicionais' };
+  const grupos = { banho: [], tosa: [], adicional: [] };
+  servicos.forEach(s => (grupos[s.categoria] || grupos.adicional).push(s));
+  let html = '';
+  for (const [cat, label] of Object.entries(cats)) {
+    if (!grupos[cat]?.length) continue;
+    html += `<div class="srv-cat">${label}</div>`;
+    for (const s of grupos[cat]) {
+      const preco = getPreco(s, porteAtual);
+      const precoStr = preco != null ? `R$${preco}` : '—';
+      html += `<div class="srv-row">
+        <div class="srv-nome">${s.nome} <span class="srv-preco">${precoStr}</span></div>
+        <input type="number" class="qty-input qty-total" min="0" value="0"
+          data-id="${s.id}" data-nome="${s.nome}" data-preco="${preco || 0}"
+          oninput="calcular()">
+        <input type="number" class="qty-input qty-usado" min="0" value="0"
+          data-id="${s.id}" oninput="calcular()">
+      </div>`;
+    }
+  }
+  document.getElementById('srvList').innerHTML = html;
+  calcular();
+}
+function calcular() {
+  let total = 0;
+  const semPreco = [];
+  document.querySelectorAll('.qty-total').forEach(inp => {
+    const qty = parseInt(inp.value) || 0;
+    if (!qty) return;
+    const preco = parseFloat(inp.dataset.preco) || 0;
+    if (preco) total += preco * qty;
+    else semPreco.push(inp.dataset.nome);
+  });
+  const sug = Math.round(total * 0.9);
+  document.getElementById('totalTabela').textContent = `R$ ${total.toLocaleString('pt-BR')}`;
+  document.getElementById('sugestao').textContent = `R$ ${sug.toLocaleString('pt-BR')}`;
+  const av = document.getElementById('aviso');
+  if (semPreco.length) { av.style.display = ''; av.textContent = `⚠️ Sob avaliação (não incluso no total): ${semPreco.join(', ')}`; }
+  else av.style.display = 'none';
+  if (!valorEditado) document.getElementById('valor').value = sug || '';
+}
+
+// SALVAR
+async function salvar() {
+  const btn = document.getElementById('btnSalvar');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+
+  try {
+    // 1. Cliente
+    let clienteId = document.getElementById('cId').value;
+    const novoAberto = document.getElementById('novoCampos').style.display !== 'none';
+    if (!clienteId && novoAberto) {
+      const nome = document.getElementById('cNome').value.trim();
+      const tel  = document.getElementById('cTel').value.trim();
+      if (!nome || !tel) { showToast('Preencha nome e WhatsApp', 'error'); return; }
+      const r = await fetch(`${N8N_CAD}/novo-cliente`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_id: TENANT_ID, nome, telefone: normalizarTel(tel) })
+      });
+      if (r.ok) { const d = await r.json(); clienteId = d?.id || d?.[0]?.id; }
+      if (!clienteId) { showToast('Erro ao criar cliente', 'error'); return; }
+    }
+    if (!clienteId) { showToast('Selecione ou crie um cliente', 'error'); return; }
+
+    // 2. Pet
+    const petNome  = document.getElementById('pNome').value.trim();
+    const petPorte = document.getElementById('pPorte').value;
+    if (!petNome || !petPorte) { showToast('Preencha nome e porte do pet', 'error'); return; }
+    let petId = null;
+    const rp = await fetch(`${N8N_CAD}/novo-pet`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant_id: TENANT_ID, cliente_id: clienteId,
+        nome: petNome, raca: document.getElementById('pRaca').value,
+        porte: petPorte, pelagem: document.getElementById('pPelagem').value,
+        especie: 'canina', historico: [], sexo: 'M'
+      })
+    });
+    if (rp.ok) { const d = await rp.json(); petId = d?.[0]?.id || d?.id || null; }
+
+    // 3. Montar saldos
+    const saldos = {};
+    const usados = [];
+    let totalBanhos = 0, totalTosasHig = 0;
+    document.querySelectorAll('.qty-total').forEach(inp => {
+      const qty = parseInt(inp.value) || 0;
+      if (!qty) return;
+      const id    = inp.dataset.id;
+      const nome  = inp.dataset.nome;
+      const preco = parseFloat(inp.dataset.preco) || 0;
+      const uEl   = document.querySelector(`.qty-usado[data-id="${id}"]`);
+      const usado = Math.min(parseInt(uEl?.value) || 0, qty);
+      saldos[id]  = { nome, quantidade: qty, restante: qty - usado, preco_unit: preco };
+      if (nome.toLowerCase().includes('banho') && !nome.toLowerCase().includes('tosa')) totalBanhos += qty;
+      if (nome.toLowerCase().includes('higiênica')) totalTosasHig += qty;
+      if (usado > 0) usados.push({ id, nome, usado });
+    });
+    if (!Object.keys(saldos).length) { showToast('Adicione pelo menos um serviço', 'error'); return; }
+
+    const dataAdesao  = document.getElementById('dataAdesao').value;
+    const valorPacote = parseFloat(document.getElementById('valor').value) || 0;
+    const pagamento   = document.getElementById('pagamento').value;
+    const dataExp     = new Date(dataAdesao || Date.now());
+    dataExp.setMonth(dataExp.getMonth() + 4);
+
+    // 4. Inserir pacote
+    const pac = await sbPost('cliente_pacotes', {
+      tenant_id: TENANT_ID, cliente_id: clienteId,
+      saldos, porte: porteAtual.toUpperCase(),
+      saldo_banhos: totalBanhos, saldo_tosas_higienicas: totalTosasHig,
+      valor_pago: valorPacote, forma_pagamento: pagamento,
+      data_adesao: dataAdesao, data_expiracao: dataExp.toISOString().split('T')[0], ativo: true
+    });
+    const pacoteId = Array.isArray(pac) ? pac[0]?.id : pac?.id;
+
+    // 5. Histórico de uso já consumido
+    if (pacoteId && usados.length) {
+      for (const u of usados) {
+        await sbPost('historico_uso_pacotes', {
+          tenant_id: TENANT_ID, cliente_pacote_id: pacoteId,
+          servico_id: u.id, servico_nome: u.nome,
+          quantidade: u.usado, porte_usado: porteAtual.toUpperCase(),
+          criado_em: dataAdesao ? new Date(dataAdesao).toISOString() : new Date().toISOString()
+        });
+      }
+    }
+
+    // Sucesso
+    document.getElementById('formState').style.display = 'none';
+    const s = document.getElementById('successState');
+    s.style.display = '';
+    document.getElementById('successMsg').textContent =
+      `${petNome} (${document.getElementById('cBusca').value || document.getElementById('cNome').value}) · R$ ${valorPacote.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+
+  } catch(e) {
+    showToast('Erro ao salvar. Tente novamente.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Registrar pacote';
+  }
+}
+
+function resetForm() {
+  document.getElementById('formState').style.display = '';
+  document.getElementById('successState').style.display = 'none';
+  document.getElementById('cBusca').value = '';
+  document.getElementById('cId').value = '';
+  document.getElementById('cSel').style.display = 'none';
+  document.getElementById('cDropdown').style.display = 'none';
+  document.getElementById('novoCampos').style.display = 'none';
+  document.getElementById('btnNovo').textContent = '+ Novo cliente';
+  document.getElementById('cNome').value = '';
+  document.getElementById('cTel').value = '';
+  document.getElementById('pNome').value = '';
+  document.getElementById('pRaca').value = '';
+  document.getElementById('pPorte').value = '';
+  document.getElementById('pPelagem').value = 'curto';
+  document.getElementById('valor').value = '';
+  valorEditado = false;
+  porteAtual = 'p';
+  document.querySelectorAll('[data-porte]').forEach(b => b.classList.toggle('active', b.dataset.porte === 'p'));
+  document.getElementById('dataAdesao').value = new Date().toISOString().split('T')[0];
+  renderServicos();
+}
+
+init();
+</script>
+</body>
+</html>
