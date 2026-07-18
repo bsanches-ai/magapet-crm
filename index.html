@@ -2751,6 +2751,11 @@ async function marcarEntregue(id, usouPacote = false, legacyN8nDebit = false) {
       })
     });
   } catch {}
+
+  if (usouPacote) {
+    sbPatch('agendamentos', `id=eq.${id}`, { usou_pacote: true }).catch(() => {});
+  }
+
   ag.status = 'entregue';
   showToast('Entregue! Mensagem enviada 💛', 'success');
   renderAgenda();
