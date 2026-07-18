@@ -282,9 +282,10 @@ async function buscarCliente() {
   dd.style.display = '';
   try {
     const isPhone = /^\d+$/.test(q);
+    const pat = encodeURIComponent(`%${q}%`);
     const filter = isPhone
-      ? `tenant_id=eq.${TENANT_ID}&telefone=ilike.*${q}*&select=id,nome,telefone&limit=8`
-      : `tenant_id=eq.${TENANT_ID}&nome=ilike.*${q}*&select=id,nome,telefone&order=nome&limit=8`;
+      ? `tenant_id=eq.${TENANT_ID}&telefone=ilike.${pat}&select=id,nome,telefone&limit=8`
+      : `tenant_id=eq.${TENANT_ID}&nome=ilike.${pat}&select=id,nome,telefone&order=nome&limit=8`;
     const m = await sbGet('clientes', filter);
     if (!m || !m.length) {
       dd.innerHTML = '<div class="dropdown-item" style="color:var(--muted)">Nenhum cliente encontrado</div>';
