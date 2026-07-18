@@ -379,16 +379,22 @@ function calcular() {
   // Manter datas já preenchidas
   const datasExistentes = {};
   list.querySelectorAll('[data-uso-id]').forEach(el => {
-    datasExistentes[el.dataset.usoId] = el.value;
+    const key = `${el.dataset.usoId}__${el.dataset.usoIdx || 0}`;
+    datasExistentes[key] = el.value;
   });
-  list.innerHTML = comUso.map(u =>
-    `<div style="display:flex;align-items:center;gap:10px;padding:4px 0;font-size:13px;">
-      <span style="flex:1;color:var(--text);">${u.nome} <span style="color:var(--orange);font-size:11px;">(${u.usado}x)</span></span>
-      <input type="date" data-uso-id="${u.id}"
-        style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;font-family:inherit;"
-        value="${datasExistentes[u.id] || ''}">
-    </div>`
-  ).join('');
+  list.innerHTML = comUso.map(u => {
+    let rows = `<div style="font-size:12px;font-weight:600;color:var(--text);padding:6px 0 2px;">${u.nome}</div>`;
+    for (let i = 0; i < u.usado; i++) {
+      const key = `${u.id}__${i}`;
+      rows += `<div style="display:flex;align-items:center;gap:8px;padding:3px 0 3px 10px;font-size:12px;">
+        <span style="color:var(--muted);min-width:48px;">Uso ${i + 1}</span>
+        <input type="date" data-uso-id="${u.id}" data-uso-idx="${i}"
+          style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;font-family:inherit;"
+          value="${datasExistentes[key] || ''}">
+      </div>`;
+    }
+    return rows;
+  }).join('');
 }
 
 // SALVAR
@@ -446,9 +452,12 @@ async function salvar() {
       if (nome.toLowerCase().includes('banho') && !nome.toLowerCase().includes('tosa')) totalBanhos += qty;
       if (nome.toLowerCase().includes('higiênica')) totalTosasHig += qty;
       if (usado > 0) {
-        const dataUsoEl = document.querySelector(`[data-uso-id="${id}"]`);
-        const dataUso = dataUsoEl?.value || dataAdesao || null;
-        usados.push({ id, nome, usado, dataUso });
+        const datas = [];
+        for (let i = 0; i < usado; i++) {
+          const el = document.querySelector(`[data-uso-id="${id}"][data-uso-idx="${i}"]`);
+          datas.push(el?.value || null);
+        }
+        usados.push({ id, nome, usado, datas });
       }
     });
     if (!Object.keys(saldos).length) { showToast('Adicione pelo menos um serviço', 'error'); return; }
@@ -472,12 +481,15 @@ async function salvar() {
     // 5. Histórico de uso já consumido
     if (pacoteId && usados.length) {
       for (const u of usados) {
-        await sbPost('historico_uso_pacotes', {
-          tenant_id: TENANT_ID, cliente_pacote_id: pacoteId,
-          servico_id: u.id, servico_nome: u.nome,
-          quantidade: u.usado, porte_usado: porteAtual.toUpperCase(),
-          criado_em: u.dataUso ? new Date(u.dataUso).toISOString() : (dataAdesao ? new Date(dataAdesao).toISOString() : new Date().toISOString())
-        });
+        for (let i = 0; i < u.usado; i++) {
+          const data = u.datas[i] || dataAdesao || null;
+          await sbPost('historico_uso_pacotes', {
+            tenant_id: TENANT_ID, cliente_pacote_id: pacoteId,
+            servico_id: u.id, servico_nome: u.nome,
+            quantidade: 1, porte_usado: porteAtual.toUpperCase(),
+            criado_em: data ? new Date(data).toISOString() : new Date().toISOString()
+          });
+        }
       }
     }
 

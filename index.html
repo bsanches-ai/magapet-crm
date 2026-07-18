@@ -4427,13 +4427,20 @@ function calcularTotalImport() {
   if (!comUso.length) { sec.style.display = 'none'; return; }
   sec.style.display = '';
   const existentes = {};
-  list.querySelectorAll('[data-uso-id]').forEach(el => { existentes[el.dataset.usoId] = el.value; });
-  list.innerHTML = comUso.map(u =>
-    `<div style="display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px;">
-      <span style="flex:1;">${u.nome} <span style="color:var(--orange);font-size:11px;">(${u.usado}x)</span></span>
-      <input type="date" data-uso-id="${u.id}" class="modal-input" style="margin:0;width:140px;padding:5px 8px;font-size:12px;" value="${existentes[u.id] || ''}">
-    </div>`
-  ).join('');
+  list.querySelectorAll('[data-uso-id]').forEach(el => {
+    existentes[`${el.dataset.usoId}__${el.dataset.usoIdx || 0}`] = el.value;
+  });
+  list.innerHTML = comUso.map(u => {
+    let rows = `<div style="font-size:12px;font-weight:600;color:var(--cream);padding:6px 0 2px;">${u.nome}</div>`;
+    for (let i = 0; i < u.usado; i++) {
+      rows += `<div style="display:flex;align-items:center;gap:8px;padding:3px 0 3px 8px;">
+        <span style="font-size:11px;color:var(--muted);min-width:44px;">Uso ${i + 1}</span>
+        <input type="date" data-uso-id="${u.id}" data-uso-idx="${i}" class="modal-input"
+          style="margin:0;padding:5px 8px;font-size:12px;" value="${existentes[`${u.id}__${i}`] || ''}">
+      </div>`;
+    }
+    return rows;
+  }).join('');
 }
 
 async function confirmarImportarPacote() {
@@ -4500,8 +4507,12 @@ async function confirmarImportarPacote() {
     if (nome.toLowerCase().includes('banho') && !nome.toLowerCase().includes('tosa')) totalBanhos += qty;
     if (nome.toLowerCase().includes('higiênica')) totalTosasHig += qty;
     if (usado > 0) {
-      const dataUsoEl = document.querySelector(`[data-uso-id="${id}"]`);
-      usados.push({ id, nome, usado, dataUso: dataUsoEl?.value || null });
+      const datas = [];
+      for (let i = 0; i < usado; i++) {
+        const el = document.querySelector(`[data-uso-id="${id}"][data-uso-idx="${i}"]`);
+        datas.push(el?.value || null);
+      }
+      usados.push({ id, nome, usado, datas });
     }
   });
 
@@ -4527,12 +4538,15 @@ async function confirmarImportarPacote() {
     // Registrar sessões já usadas no histórico
     if (pacoteId && usados.length) {
       for (const u of usados) {
-        await sbPost('historico_uso_pacotes', {
-          tenant_id: TENANT_ID, cliente_pacote_id: pacoteId,
-          servico_id: u.id, servico_nome: u.nome,
-          quantidade: u.usado, porte_usado: impPorteAtual.toUpperCase(),
-          criado_em: u.dataUso ? new Date(u.dataUso).toISOString() : (dataAdesao ? new Date(dataAdesao).toISOString() : new Date().toISOString())
-        });
+        for (let i = 0; i < u.usado; i++) {
+          const data = u.datas[i] || dataAdesao || null;
+          await sbPost('historico_uso_pacotes', {
+            tenant_id: TENANT_ID, cliente_pacote_id: pacoteId,
+            servico_id: u.id, servico_nome: u.nome,
+            quantidade: 1, porte_usado: impPorteAtual.toUpperCase(),
+            criado_em: data ? new Date(data).toISOString() : new Date().toISOString()
+          });
+        }
       }
     }
 
