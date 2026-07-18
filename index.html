@@ -2833,6 +2833,35 @@ async function marcarAtendendo(id) {
   showToast(`${ag.pet_nome} em atendimento 🐾`, 'success');
   renderAgenda();
   updateSummary();
+  // Impressão automática da ficha
+  _imprimirFichaAtendimento(ag);
+}
+
+async function _imprimirFichaAtendimento(ag) {
+  try {
+    const dataHora = ag.data_hora ? new Date(ag.data_hora) : null;
+    const dataStr = dataHora ? dataHora.toISOString().split('T')[0] : (ag.data || '');
+    const adicionaisTexto = (ag.adicionais || []).map(a => a.nome || a).join(', ');
+    await fetch('http://127.0.0.1:5000/print', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pet_nome:    ag.pet_nome || '',
+        pet_raca:    ag.pet_raca || '',
+        pet_porte:   ag.pet_porte || '',
+        pet_pelagem: ag.pet_pelagem || '',
+        pet_sexo:    ag.pet_sexo || '',
+        tutor_nome:  ag.tutor_nome || ag.nome_tutor || '',
+        servico:     ag.servico || '',
+        adicionais:  adicionaisTexto,
+        hora:        ag.hora || '',
+        data:        dataStr
+      }),
+      signal: AbortSignal.timeout(3000)
+    });
+  } catch {
+    // Servidor offline — não bloqueia o fluxo
+  }
 }
 
 async function marcarPronto(id) {
