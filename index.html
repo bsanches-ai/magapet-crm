@@ -2697,6 +2697,7 @@ async function marcarEntregue(id, usouPacote = false) {
   let valorAdicionais = ag.adicionais_valor || 0;
   let valorDesconto = ag.desconto || 0;
   const valorTotal = Math.max(0, valorServico + valorAdicionais - valorDesconto);
+  if (usouPacote) ag.valor = 0; // atualiza em memória para receita do dia ficar correta
 
   try {
     await fetch(`${N8N_ATENDIMENTO}/entregue`, {
