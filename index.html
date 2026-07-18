@@ -1189,6 +1189,13 @@
     <div id="imp-servicos-list" style="margin-bottom:14px;"></div>
 
     <div id="imp-aviso-sem-preco" style="display:none;font-size:12px;color:var(--orange);margin-bottom:8px;"></div>
+
+    <!-- Datas de uso por serviço -->
+    <div id="imp-datas-uso-section" style="display:none;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--orange);margin-bottom:6px;">📅 Quando foram usados?</div>
+      <div id="imp-datas-uso-list"></div>
+    </div>
+
     <div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
         <span style="color:var(--muted);">Total de tabela</span>
@@ -4390,13 +4397,21 @@ function renderizarServicosImport() {
 function calcularTotalImport() {
   let total = 0;
   const semPreco = [];
+  const comUso = [];
+
   document.querySelectorAll('.imp-qty-total').forEach(input => {
     const qty = parseInt(input.value) || 0;
     if (!qty) return;
     const preco = parseFloat(input.dataset.preco) || 0;
     if (preco) total += preco * qty;
     else semPreco.push(input.dataset.nome);
+
+    const id = input.dataset.id;
+    const uEl = document.querySelector(`.imp-qty-usado[data-id="${id}"]`);
+    const usado = parseInt(uEl?.value) || 0;
+    if (usado > 0) comUso.push({ id, nome: input.dataset.nome, usado });
   });
+
   const sugestao = Math.round(total * 0.9);
   document.getElementById('imp-total-tabela').textContent = `R$ ${total.toLocaleString('pt-BR')}`;
   document.getElementById('imp-sugestao').textContent = `R$ ${sugestao.toLocaleString('pt-BR')}`;
@@ -4404,6 +4419,21 @@ function calcularTotalImport() {
   if (semPreco.length) { aviso.style.display = ''; aviso.textContent = `⚠️ Sob avaliação (não incluso): ${semPreco.join(', ')}`; }
   else aviso.style.display = 'none';
   if (!impValorEditado) document.getElementById('imp-valor').value = sugestao || '';
+
+  // Datas de uso por serviço
+  const sec = document.getElementById('imp-datas-uso-section');
+  const list = document.getElementById('imp-datas-uso-list');
+  if (!sec) return;
+  if (!comUso.length) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  const existentes = {};
+  list.querySelectorAll('[data-uso-id]').forEach(el => { existentes[el.dataset.usoId] = el.value; });
+  list.innerHTML = comUso.map(u =>
+    `<div style="display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px;">
+      <span style="flex:1;">${u.nome} <span style="color:var(--orange);font-size:11px;">(${u.usado}x)</span></span>
+      <input type="date" data-uso-id="${u.id}" class="modal-input" style="margin:0;width:140px;padding:5px 8px;font-size:12px;" value="${existentes[u.id] || ''}">
+    </div>`
+  ).join('');
 }
 
 async function confirmarImportarPacote() {
@@ -4469,7 +4499,10 @@ async function confirmarImportarPacote() {
     saldos[id] = { nome, quantidade: qty, restante, preco_unit: preco };
     if (nome.toLowerCase().includes('banho') && !nome.toLowerCase().includes('tosa')) totalBanhos += qty;
     if (nome.toLowerCase().includes('higiênica')) totalTosasHig += qty;
-    if (usado > 0) usados.push({ id, nome, usado });
+    if (usado > 0) {
+      const dataUsoEl = document.querySelector(`[data-uso-id="${id}"]`);
+      usados.push({ id, nome, usado, dataUso: dataUsoEl?.value || null });
+    }
   });
 
   if (!Object.keys(saldos).length) { showToast('Adicione pelo menos um serviço', 'error'); return; }
@@ -4498,7 +4531,7 @@ async function confirmarImportarPacote() {
           tenant_id: TENANT_ID, cliente_pacote_id: pacoteId,
           servico_id: u.id, servico_nome: u.nome,
           quantidade: u.usado, porte_usado: impPorteAtual.toUpperCase(),
-          criado_em: dataAdesao ? new Date(dataAdesao).toISOString() : new Date().toISOString()
+          criado_em: u.dataUso ? new Date(u.dataUso).toISOString() : (dataAdesao ? new Date(dataAdesao).toISOString() : new Date().toISOString())
         });
       }
     }

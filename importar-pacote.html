@@ -179,6 +179,13 @@
     </div>
     <div id="srvList"></div>
     <div class="aviso" id="aviso"></div>
+
+    <!-- Datas de uso — aparece só se tiver qty usado > 0 -->
+    <div id="datasUsoSection" style="display:none;margin-bottom:14px;">
+      <div style="font-size:12px;font-weight:700;color:var(--orange);margin-bottom:8px;">📅 Quando foram usados?</div>
+      <div id="datasUsoList"></div>
+    </div>
+
     <div class="summary">
       <div class="summary-row"><span style="color:var(--muted)">Total de tabela</span><span id="totalTabela" style="font-weight:600">R$ 0</span></div>
       <div class="summary-row"><span style="color:var(--muted)">Sugestão (−10%)</span><span id="sugestao" style="color:var(--blue);font-weight:600">R$ 0</span></div>
@@ -341,13 +348,21 @@ function renderServicos() {
 function calcular() {
   let total = 0;
   const semPreco = [];
+  const comUso = [];
+
   document.querySelectorAll('.qty-total').forEach(inp => {
     const qty = parseInt(inp.value) || 0;
     if (!qty) return;
     const preco = parseFloat(inp.dataset.preco) || 0;
     if (preco) total += preco * qty;
     else semPreco.push(inp.dataset.nome);
+
+    const id = inp.dataset.id;
+    const uEl = document.querySelector(`.qty-usado[data-id="${id}"]`);
+    const usado = parseInt(uEl?.value) || 0;
+    if (usado > 0) comUso.push({ id, nome: inp.dataset.nome, usado });
   });
+
   const sug = Math.round(total * 0.9);
   document.getElementById('totalTabela').textContent = `R$ ${total.toLocaleString('pt-BR')}`;
   document.getElementById('sugestao').textContent = `R$ ${sug.toLocaleString('pt-BR')}`;
@@ -355,6 +370,25 @@ function calcular() {
   if (semPreco.length) { av.style.display = ''; av.textContent = `⚠️ Sob avaliação (não incluso no total): ${semPreco.join(', ')}`; }
   else av.style.display = 'none';
   if (!valorEditado) document.getElementById('valor').value = sug || '';
+
+  // Seção de datas de uso
+  const sec = document.getElementById('datasUsoSection');
+  const list = document.getElementById('datasUsoList');
+  if (!comUso.length) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  // Manter datas já preenchidas
+  const datasExistentes = {};
+  list.querySelectorAll('[data-uso-id]').forEach(el => {
+    datasExistentes[el.dataset.usoId] = el.value;
+  });
+  list.innerHTML = comUso.map(u =>
+    `<div style="display:flex;align-items:center;gap:10px;padding:4px 0;font-size:13px;">
+      <span style="flex:1;color:var(--text);">${u.nome} <span style="color:var(--orange);font-size:11px;">(${u.usado}x)</span></span>
+      <input type="date" data-uso-id="${u.id}"
+        style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;font-family:inherit;"
+        value="${datasExistentes[u.id] || ''}">
+    </div>`
+  ).join('');
 }
 
 // SALVAR
@@ -411,7 +445,11 @@ async function salvar() {
       saldos[id]  = { nome, quantidade: qty, restante: qty - usado, preco_unit: preco };
       if (nome.toLowerCase().includes('banho') && !nome.toLowerCase().includes('tosa')) totalBanhos += qty;
       if (nome.toLowerCase().includes('higiênica')) totalTosasHig += qty;
-      if (usado > 0) usados.push({ id, nome, usado });
+      if (usado > 0) {
+        const dataUsoEl = document.querySelector(`[data-uso-id="${id}"]`);
+        const dataUso = dataUsoEl?.value || dataAdesao || null;
+        usados.push({ id, nome, usado, dataUso });
+      }
     });
     if (!Object.keys(saldos).length) { showToast('Adicione pelo menos um serviço', 'error'); return; }
 
@@ -438,7 +476,7 @@ async function salvar() {
           tenant_id: TENANT_ID, cliente_pacote_id: pacoteId,
           servico_id: u.id, servico_nome: u.nome,
           quantidade: u.usado, porte_usado: porteAtual.toUpperCase(),
-          criado_em: dataAdesao ? new Date(dataAdesao).toISOString() : new Date().toISOString()
+          criado_em: u.dataUso ? new Date(u.dataUso).toISOString() : (dataAdesao ? new Date(dataAdesao).toISOString() : new Date().toISOString())
         });
       }
     }
