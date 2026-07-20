@@ -1556,6 +1556,14 @@
   </div>
 </div>
 
+<!-- MODAL GENÉRICO -->
+<div class="modal-overlay" id="modalGenerico" onclick="if(event.target===this)fecharModal()">
+  <div class="modal" style="max-width:480px;max-height:90vh;overflow-y:auto;">
+    <div class="modal-title" id="modalGenericoTitulo"></div>
+    <div id="modalGenericoBody"></div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -3862,6 +3870,15 @@ async function carregarPacotesNaFicha(clienteId) {
 // ---- EDITAR / EXCLUIR PACOTE ----
 let _pacoteEditandoId = null;
 let _pacoteEditandoClienteId = null;
+
+function abrirModal(titulo, html) {
+  document.getElementById('modalGenericoTitulo').textContent = titulo;
+  document.getElementById('modalGenericoBody').innerHTML = html;
+  document.getElementById('modalGenerico').classList.add('open');
+}
+function fecharModal() {
+  document.getElementById('modalGenerico').classList.remove('open');
+}
 
 async function abrirEditarPacote(pacoteId) {
   const pac = await sbGet('cliente_pacotes', `id=eq.${pacoteId}&select=id,saldos,porte,data_adesao,data_expiracao,valor_pago,ativo,cliente_id&limit=1`);
