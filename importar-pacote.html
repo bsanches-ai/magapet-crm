@@ -277,7 +277,7 @@ async function init() {
 async function buscarCliente() {
   const q = (document.getElementById('cBusca').value || '').trim();
   const dd = document.getElementById('cDropdown');
-  if (q.length < 2) { dd.innerHTML = '<div class="dropdown-item" style="color:var(--muted)">Digite ao menos 2 caracteres</div>'; dd.style.display = ''; return; }
+  if (q.length < 2) { dd.innerHTML = '<div class="dropdown-item" style="color:var(--muted)">Digite ao menos 2 caracteres</div>'; dd.style.display = 'block'; return; }
   dd.innerHTML = '<div class="dropdown-item" style="color:var(--muted)">Buscando...</div>';
   dd.style.display = 'block';
   try {
@@ -313,7 +313,7 @@ function selecionarCliente(id, nome, tel) {
 function toggleNovo() {
   const c = document.getElementById('novoCampos');
   const aberto = c.style.display !== 'none';
-  c.style.display = aberto ? 'none' : '';
+  c.style.display = aberto ? 'none' : 'block';
   document.getElementById('btnNovo').textContent = aberto ? '+ Novo cliente' : '− Cancelar';
   if (!aberto) {
     document.getElementById('cId').value = '';
@@ -379,7 +379,7 @@ function calcular() {
   document.getElementById('totalTabela').textContent = `R$ ${total.toLocaleString('pt-BR')}`;
   document.getElementById('sugestao').textContent = `R$ ${sug.toLocaleString('pt-BR')}`;
   const av = document.getElementById('aviso');
-  if (semPreco.length) { av.style.display = ''; av.textContent = `⚠️ Sob avaliação (não incluso no total): ${semPreco.join(', ')}`; }
+  if (semPreco.length) { av.style.display = 'block'; av.textContent = `⚠️ Sob avaliação (não incluso no total): ${semPreco.join(', ')}`; }
   else av.style.display = 'none';
   if (!valorEditado) document.getElementById('valor').value = sug || '';
 
@@ -387,7 +387,7 @@ function calcular() {
   const sec = document.getElementById('datasUsoSection');
   const list = document.getElementById('datasUsoList');
   if (!comUso.length) { sec.style.display = 'none'; return; }
-  sec.style.display = '';
+  sec.style.display = 'block';
   // Manter datas já preenchidas
   const datasExistentes = {};
   list.querySelectorAll('[data-uso-id]').forEach(el => {
