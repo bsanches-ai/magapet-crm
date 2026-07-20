@@ -425,12 +425,19 @@ async function salvar() {
       const nome = document.getElementById('cNome').value.trim();
       const tel  = document.getElementById('cTel').value.trim();
       if (!nome || !tel) { showToast('Preencha nome e WhatsApp', 'error'); return; }
-      const r = await fetch(`${N8N_CAD}/novo-cliente`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenant_id: TENANT_ID, nome, telefone: normalizarTel(tel) })
-      });
-      if (r.ok) { const d = await r.json(); clienteId = d?.id || d?.[0]?.id; }
-      if (!clienteId) { showToast('Erro ao criar cliente', 'error'); return; }
+      const telNorm = normalizarTel(tel);
+      // Verifica se telefone já existe antes de tentar criar
+      const existente = await sbGet('clientes', `tenant_id=eq.${TENANT_ID}&telefone=eq.${telNorm}&select=id&limit=1`);
+      if (existente && existente.length) {
+        clienteId = existente[0].id;
+      } else {
+        const r = await fetch(`${N8N_CAD}/novo-cliente`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenant_id: TENANT_ID, nome, telefone: telNorm })
+        });
+        if (r.ok) { const d = await r.json(); clienteId = d?.id || d?.[0]?.id; }
+        if (!clienteId) { showToast('Erro ao criar cliente', 'error'); return; }
+      }
     }
     if (!clienteId) { showToast('Selecione ou crie um cliente', 'error'); return; }
 
