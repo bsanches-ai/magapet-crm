@@ -428,14 +428,20 @@ async function salvar() {
       const telNorm = normalizarTel(tel);
       // Verifica se telefone já existe antes de tentar criar
       const existente = await sbGet('clientes', `tenant_id=eq.${TENANT_ID}&telefone=eq.${telNorm}&select=id&limit=1`);
-      if (existente && existente.length) {
+      if (Array.isArray(existente) && existente.length) {
         clienteId = existente[0].id;
       } else {
         const r = await fetch(`${N8N_CAD}/novo-cliente`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tenant_id: TENANT_ID, nome, telefone: telNorm })
         });
-        if (r.ok) { const d = await r.json(); clienteId = d?.id || d?.[0]?.id; }
+        const d = await r.json();
+        clienteId = d?.id || d?.[0]?.id;
+        // Fallback: se n8n retornou 409 (telefone duplicado), busca o cliente existente
+        if (!clienteId && !r.ok) {
+          const fb = await sbGet('clientes', `tenant_id=eq.${TENANT_ID}&telefone=eq.${telNorm}&select=id&limit=1`);
+          if (Array.isArray(fb) && fb.length) clienteId = fb[0].id;
+        }
         if (!clienteId) { showToast('Erro ao criar cliente', 'error'); return; }
       }
     }
