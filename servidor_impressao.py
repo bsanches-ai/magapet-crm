@@ -84,6 +84,15 @@ def health():
 def imprimir():
     try:
         data = request.json or {}
+        print('=== DADOS RECEBIDOS ===')
+        print(f"pet_nome:   {data.get('pet_nome')}")
+        print(f"pet_raca:   {data.get('pet_raca')}")
+        print(f"tutor_nome: {data.get('tutor_nome')}")
+        print(f"servico:    {data.get('servico')}")
+        print(f"adicionais: {data.get('adicionais')}")
+        print(f"hora:       {data.get('hora')}")
+        print(f"data:       {data.get('data')}")
+        print('=======================')
         buf  = montar_ficha(data)
         with open(f'\\\\.\\{PORTA}', 'wb') as porta:
             porta.write(buf)
