@@ -279,6 +279,10 @@ pywin32
 const conteudoBat = `@echo off
 title MagaPet - Servidor de Impressao
 cd /d "%~dp0"
+:: Fecha servidor anterior se estiver rodando
+taskkill /F /IM python.exe >nul 2>&1
+taskkill /F /IM python3.exe >nul 2>&1
+timeout /t 1 /nobreak >nul
 "%LOCALAPPDATA%\\Programs\\Python\\Python38\\python.exe" servidor_impressao.py
 pause
 `;
