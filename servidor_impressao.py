@@ -27,6 +27,9 @@ def montar_ficha(d):
     adicionais = d.get('adicionais', [])
     if isinstance(adicionais, str):
         adicionais = [a.strip() for a in adicionais.split(',') if a.strip()]
+    # Se o serviço é tosa, banho já está incluso — remove dos adicionais
+    if 'tosa' in servico.lower():
+        adicionais = [a for a in adicionais if 'banho' not in a.lower()]
     hora       = d.get('hora', '')
     data_str   = d.get('data', '')
     try:
