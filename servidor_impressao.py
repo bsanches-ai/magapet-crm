@@ -1,78 +1,66 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import win32ui
+import win32con
 import datetime
-import subprocess
 
 app = Flask(__name__)
 CORS(app, origins=["https://bsanches-ai.github.io", "http://localhost", "http://127.0.0.1"])
 
 PRINTER_NAME = "Daruma DR800"
-LARGURA = 42
 
-def linha(texto=''):
-    return (texto + '\r\n').encode('cp850', errors='replace')
-
-def sep(c='-'):
-    return linha(c * LARGURA)
-
-def centralizar(texto):
-    return linha(texto.center(LARGURA))
-
-def montar_ficha(d):
+def montar_linhas(d):
     pet_nome   = d.get('pet_nome', '-')
     pet_raca   = d.get('pet_raca', '-')
     tutor_nome = d.get('tutor_nome', '-')
-    taxi_dog   = d.get('taxi_dog', False)
     servico    = d.get('servico', '-')
     adicionais = d.get('adicionais', [])
-    if isinstance(adicionais, str):
-        adicionais = [a.strip() for a in adicionais.split(',') if a.strip()]
-    # Se o serviço é tosa, banho já está incluso — remove dos adicionais
-    if 'tosa' in servico.lower():
-        adicionais = [a for a in adicionais if 'banho' not in a.lower()]
     hora       = d.get('hora', '')
     data_str   = d.get('data', '')
+
+    if isinstance(adicionais, str):
+        adicionais = [a.strip() for a in adicionais.split(',') if a.strip()]
+    if 'tosa' in servico.lower():
+        adicionais = [a for a in adicionais if 'banho' not in a.lower()]
+
     try:
         dt = datetime.datetime.strptime(data_str, '%Y-%m-%d')
         data_fmt = dt.strftime('%d/%m/%Y')
     except:
         data_fmt = data_str
 
-    taxi_sim = '[ ]'
-    taxi_nao = '[ ]'
+    SEP  = '-' * 42
+    SEP2 = '=' * 42
 
-    buf = b''
-    buf += sep('=')
-    buf += centralizar('MagaPet')
-    buf += centralizar('Ficha de Atendimento')
-    buf += centralizar(f'{data_fmt}  {hora}')
-    buf += sep('=')
-    buf += linha(f'Nome:      {pet_nome}')
-    buf += linha(f'Raca:      {pet_raca}')
-    buf += linha(f'Tutor:     {tutor_nome}')
-    buf += sep('-')
-    buf += linha(f'Taxi Dog:  {taxi_sim} Sim   {taxi_nao} Nao')
-    buf += sep('-')
-    buf += linha(f'Servico:   {servico}')
+    linhas = []
+    linhas.append(SEP2)
+    linhas.append('             MagaPet')
+    linhas.append('       Ficha de Atendimento')
+    linhas.append(f'       {data_fmt}  {hora}')
+    linhas.append(SEP2)
+    linhas.append(f'Nome:      {pet_nome}')
+    linhas.append(f'Raca:      {pet_raca}')
+    linhas.append(f'Tutor:     {tutor_nome}')
+    linhas.append(SEP)
+    linhas.append('Taxi Dog:  [ ] Sim   [ ] Nao')
+    linhas.append(SEP)
+    linhas.append(f'Servico:   {servico}')
     if adicionais:
-        buf += linha('Adicionais:')
+        linhas.append('Adicionais:')
         for ad in adicionais:
-            buf += linha(f'  - {ad}')
-    buf += sep('-')
-    buf += linha('Desembolo: [ ] Sim   [ ] Nao')
-    buf += linha()
-    buf += linha('Nivel: [ ]1  [ ]2  [ ]3  [ ]4  [ ]5')
-    buf += sep('-')
-    buf += linha('Observacao:')
-    buf += linha()
-    buf += linha('_' * LARGURA)
-    buf += linha()
-    buf += linha('_' * LARGURA)
-    buf += sep('=')
-    buf += linha()
-    buf += linha()
-    buf += linha()
-    return buf
+            linhas.append(f'  - {ad}')
+    linhas.append(SEP)
+    linhas.append('Desembolo: [ ] Sim   [ ] Nao')
+    linhas.append('')
+    linhas.append('Nivel: [ ]1  [ ]2  [ ]3  [ ]4  [ ]5')
+    linhas.append(SEP)
+    linhas.append('Observacao:')
+    linhas.append('')
+    linhas.append('_' * 42)
+    linhas.append('')
+    linhas.append('_' * 42)
+    linhas.append(SEP2)
+    return linhas
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -81,13 +69,39 @@ def health():
 @app.route('/print', methods=['POST'])
 def imprimir():
     try:
-        data = request.json or {}
-        conteudo = montar_ficha(data).decode('cp850', errors='replace')
-        tmp = 'C:\\MagaPet\\impressao\\ficha_temp.txt'
-        with open(tmp, 'w', encoding='cp850', errors='replace') as f:
-            f.write(conteudo)
-        import subprocess
-        subprocess.run(f'print /d:"{PRINTER_NAME}" "{tmp}"', shell=True)
+        data  = request.json or {}
+        linhas = montar_linhas(data)
+
+        dc = win32ui.CreateDC()
+        dc.CreatePrinterDC(PRINTER_NAME)
+
+        # Tamanho do papel em pixels (DPI da impressora)
+        dpi_x = dc.GetDeviceCaps(win32con.LOGPIXELSX)
+        altura_fonte = max(14, dpi_x // 15)  # ~14pt adaptado ao DPI
+
+        fonte = win32ui.CreateFont({
+            'name':   'Courier New',
+            'height': altura_fonte,
+            'weight': 400,
+            'charset': 0,
+        })
+        dc.SelectObject(fonte)
+
+        margem_x = dpi_x // 10
+        espaco_y = int(altura_fonte * 1.4)
+        y = dpi_x // 10
+
+        dc.StartDoc('MagaPet Ficha')
+        dc.StartPage()
+
+        for linha in linhas:
+            dc.TextOut(margem_x, y, linha)
+            y += espaco_y
+
+        dc.EndPage()
+        dc.EndDoc()
+        dc.DeleteDC()
+
         return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'erro': str(e)}), 500
