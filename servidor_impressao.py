@@ -1,15 +1,29 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import win32ui
-import win32con
 import datetime
 
 app = Flask(__name__)
 CORS(app, origins=["https://bsanches-ai.github.io", "http://localhost", "http://127.0.0.1"])
 
-PRINTER_NAME = "Daruma DR800"
+PORTA    = 'COM3'
+LARGURA  = 42
 
-def montar_linhas(d):
+ESC = b'\x1b'
+GS  = b'\x1d'
+
+def init():            return ESC + b'@'
+def align_center():    return ESC + b'a\x01'
+def align_left():      return ESC + b'a\x00'
+def bold_on():         return ESC + b'E\x01'
+def bold_off():        return ESC + b'E\x00'
+def cut():             return GS  + b'V\x00'
+def feed(n=3):         return ESC + b'd' + bytes([n])
+def txt(s):            return s.encode('cp850', errors='replace')
+def linha(s=''):       return txt(s) + b'\n'
+def sep(c='-'):        return txt(c * LARGURA) + b'\n'
+def central(s):        return txt(s.center(LARGURA)) + b'\n'
+
+def montar_ficha(d):
     pet_nome   = d.get('pet_nome', '-')
     pet_raca   = d.get('pet_raca', '-')
     tutor_nome = d.get('tutor_nome', '-')
@@ -29,79 +43,51 @@ def montar_linhas(d):
     except:
         data_fmt = data_str
 
-    SEP  = '-' * 42
-    SEP2 = '=' * 42
-
-    linhas = []
-    linhas.append(SEP2)
-    linhas.append('             MagaPet')
-    linhas.append('       Ficha de Atendimento')
-    linhas.append(f'       {data_fmt}  {hora}')
-    linhas.append(SEP2)
-    linhas.append(f'Nome:      {pet_nome}')
-    linhas.append(f'Raca:      {pet_raca}')
-    linhas.append(f'Tutor:     {tutor_nome}')
-    linhas.append(SEP)
-    linhas.append('Taxi Dog:  [ ] Sim   [ ] Nao')
-    linhas.append(SEP)
-    linhas.append(f'Servico:   {servico}')
+    buf = b''
+    buf += init()
+    buf += sep('=')
+    buf += bold_on() + align_center() + central('MagaPet') + bold_off()
+    buf += central('Ficha de Atendimento')
+    buf += central(f'{data_fmt}  {hora}')
+    buf += sep('=')
+    buf += align_left()
+    buf += linha(f'Nome:      {pet_nome}')
+    buf += linha(f'Raca:      {pet_raca}')
+    buf += linha(f'Tutor:     {tutor_nome}')
+    buf += sep('-')
+    buf += linha('Taxi Dog:  [ ] Sim   [ ] Nao')
+    buf += sep('-')
+    buf += linha(f'Servico:   {servico}')
     if adicionais:
-        linhas.append('Adicionais:')
+        buf += linha('Adicionais:')
         for ad in adicionais:
-            linhas.append(f'  - {ad}')
-    linhas.append(SEP)
-    linhas.append('Desembolo: [ ] Sim   [ ] Nao')
-    linhas.append('')
-    linhas.append('Nivel: [ ]1  [ ]2  [ ]3  [ ]4  [ ]5')
-    linhas.append(SEP)
-    linhas.append('Observacao:')
-    linhas.append('')
-    linhas.append('_' * 42)
-    linhas.append('')
-    linhas.append('_' * 42)
-    linhas.append(SEP2)
-    return linhas
+            buf += linha(f'  - {ad}')
+    buf += sep('-')
+    buf += linha('Desembolo: [ ] Sim   [ ] Nao')
+    buf += linha()
+    buf += linha('Nivel: [ ]1  [ ]2  [ ]3  [ ]4  [ ]5')
+    buf += sep('-')
+    buf += linha('Observacao:')
+    buf += linha()
+    buf += linha('_' * LARGURA)
+    buf += linha()
+    buf += linha('_' * LARGURA)
+    buf += sep('=')
+    buf += feed(4)
+    buf += cut()
+    return buf
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'ok': True, 'status': 'Servidor de impressao ativo'})
+    return jsonify({'ok': True, 'status': 'Servidor ativo'})
 
 @app.route('/print', methods=['POST'])
 def imprimir():
     try:
-        data  = request.json or {}
-        linhas = montar_linhas(data)
-
-        dc = win32ui.CreateDC()
-        dc.CreatePrinterDC(PRINTER_NAME)
-
-        # Tamanho do papel em pixels (DPI da impressora)
-        dpi_x = dc.GetDeviceCaps(win32con.LOGPIXELSX)
-        altura_fonte = max(14, dpi_x // 15)  # ~14pt adaptado ao DPI
-
-        fonte = win32ui.CreateFont({
-            'name':   'Courier New',
-            'height': altura_fonte,
-            'weight': 400,
-            'charset': 0,
-        })
-        dc.SelectObject(fonte)
-
-        margem_x = dpi_x // 10
-        espaco_y = int(altura_fonte * 1.4)
-        y = dpi_x // 10
-
-        dc.StartDoc('MagaPet Ficha')
-        dc.StartPage()
-
-        for linha in linhas:
-            dc.TextOut(margem_x, y, linha)
-            y += espaco_y
-
-        dc.EndPage()
-        dc.EndDoc()
-        dc.DeleteDC()
-
+        data = request.json or {}
+        buf  = montar_ficha(data)
+        with open(f'\\\\.\\{PORTA}', 'wb') as porta:
+            porta.write(buf)
         return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'erro': str(e)}), 500
@@ -109,7 +95,7 @@ def imprimir():
 if __name__ == '__main__':
     print('=' * 45)
     print('  Servidor de impressao MagaPet')
-    print(f'  Impressora: {PRINTER_NAME}')
+    print(f'  Porta: {PORTA}')
     print('  Rodando em http://localhost:5000')
     print('  Mantenha esta janela aberta.')
     print('=' * 45)
