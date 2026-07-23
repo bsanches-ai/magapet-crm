@@ -60,72 +60,121 @@
 </div>
 
 <script>
-const conteudoServidor = `from flask import Flask, request, jsonify
+const conteudoServidor = `from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import win32ui
 import win32con
 import win32print
 import datetime
+import threading
+import time
+import ssl
+import urllib.request
+import subprocess
+import os
 
 app = Flask(__name__)
-CORS(app, origins=["https://bsanches-ai.github.io", "http://localhost", "http://127.0.0.1"])
+CORS(app)
 
 PRINTER_NAME = "Daruma DR800"
+CRM_URL      = "https://bsanches-ai.github.io/magapet-crm/"
+CACHE_FILE   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crm_cache.html")
+
+crm_html = ""
+
+def carregar_crm():
+    global crm_html
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with urllib.request.urlopen(CRM_URL, context=ctx, timeout=15) as f:
+            crm_html = f.read().decode("utf-8", errors="replace")
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            f.write(crm_html)
+        print("[CRM] HTML atualizado com sucesso.")
+    except Exception as e:
+        print(f"[CRM] Sem conexao, usando cache: {e}")
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                crm_html = f.read()
+        else:
+            crm_html = "<h1>CRM indisponivel. Verifique a conexao e reinicie.</h1>"
+
+def abrir_chrome():
+    time.sleep(2)
+    caminhos = [
+        os.path.expandvars(r"%LOCALAPPDATA%\\Google\\Chrome\\Application\\chrome.exe"),
+        r"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        r"C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    ]
+    for p in caminhos:
+        if os.path.exists(p):
+            subprocess.Popen([p, "http://127.0.0.1:5000/"])
+            return
+
+@app.route("/")
+def serve_crm():
+    return Response(crm_html, content_type="text/html; charset=utf-8")
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"ok": True, "status": "Servidor ativo"})
 
 def montar_linhas(d):
-    pet_nome   = d.get('pet_nome', '-')
-    pet_raca   = d.get('pet_raca', '-')
-    tutor_nome = d.get('tutor_nome', '-')
-    servico    = d.get('servico', '-')
-    adicionais = d.get('adicionais', [])
-    hora       = d.get('hora', '')
-    data_str   = d.get('data', '')
+    pet_nome   = d.get("pet_nome", "-")
+    pet_raca   = d.get("pet_raca", "-")
+    tutor_nome = d.get("tutor_nome", "-")
+    servico    = d.get("servico", "-")
+    adicionais = d.get("adicionais", [])
+    hora       = d.get("hora", "")
+    data_str   = d.get("data", "")
 
     if isinstance(adicionais, str):
-        adicionais = [a.strip() for a in adicionais.split(',') if a.strip()]
-    if 'tosa' in servico.lower():
-        adicionais = [a for a in adicionais if 'banho' not in a.lower()]
+        adicionais = [a.strip() for a in adicionais.split(",") if a.strip()]
+    if "tosa" in servico.lower():
+        adicionais = [a for a in adicionais if "banho" not in a.lower()]
 
     try:
-        dt = datetime.datetime.strptime(data_str, '%Y-%m-%d')
-        data_fmt = dt.strftime('%d/%m/%Y')
+        dt = datetime.datetime.strptime(data_str, "%Y-%m-%d")
+        data_fmt = dt.strftime("%d/%m/%Y")
     except Exception:
         data_fmt = data_str
 
     L = 42
     linhas = [
-        '=' * L,
-        '        MagaPet',
-        '   Ficha de Atendimento',
-        f'   {data_fmt}  {hora}',
-        '=' * L,
-        f'Nome:      {pet_nome}',
-        f'Raca:      {pet_raca}',
-        f'Tutor:     {tutor_nome}',
-        '-' * L,
-        'Taxi Dog:  [ ] Sim   [ ] Nao',
-        '-' * L,
-        f'Servico:   {servico}',
+        "=" * L,
+        "        MagaPet",
+        "   Ficha de Atendimento",
+        f"   {data_fmt}  {hora}",
+        "=" * L,
+        f"Nome:      {pet_nome}",
+        f"Raca:      {pet_raca}",
+        f"Tutor:     {tutor_nome}",
+        "-" * L,
+        "Taxi Dog:  [ ] Sim   [ ] Nao",
+        "-" * L,
+        f"Servico:   {servico}",
     ]
     if adicionais:
-        linhas.append('Adicionais:')
+        linhas.append("Adicionais:")
         for ad in adicionais:
-            linhas.append(f'  - {ad}')
+            linhas.append(f"  - {ad}")
     linhas += [
-        '-' * L,
-        'Desembolo: [ ] Sim   [ ] Nao',
-        '',
-        'Nivel: [ ]1  [ ]2  [ ]3  [ ]4  [ ]5',
-        '-' * L,
-        'Observacao:',
-        '',
-        '_' * L,
-        '',
-        '_' * L,
-        '=' * L,
-        '',
-        '',
-        '',
+        "-" * L,
+        "Desembolo: [ ] Sim   [ ] Nao",
+        "",
+        "Nivel: [ ]1  [ ]2  [ ]3  [ ]4  [ ]5",
+        "-" * L,
+        "Observacao:",
+        "",
+        "_" * L,
+        "",
+        "_" * L,
+        "=" * L,
+        "",
+        "",
+        "",
     ]
     return linhas
 
@@ -140,21 +189,21 @@ def imprimir_gdi(linhas):
 
     altura_fonte = -int(dpi_y * 9 / 72)
     fonte = win32ui.CreateFont({
-        'name': 'Courier New',
-        'height': altura_fonte,
-        'weight': win32con.FW_NORMAL,
-        'charset': win32con.ANSI_CHARSET,
+        "name": "Courier New",
+        "height": altura_fonte,
+        "weight": win32con.FW_NORMAL,
+        "charset": win32con.ANSI_CHARSET,
     })
     fonte_antiga = dc.SelectObject(fonte)
 
     tm = dc.GetTextMetrics()
-    altura_linha = tm['tmHeight'] + tm['tmExternalLeading'] + 2
+    altura_linha = tm["tmHeight"] + tm["tmExternalLeading"] + 2
 
     x = int(dpi_x * 0.03)
     y = int(dpi_y * 0.05)
 
     for linha in linhas:
-        dc.TextOut(x, y, linha if linha else ' ')
+        dc.TextOut(x, y, linha if linha else " ")
         y += altura_linha
 
     dc.SelectObject(fonte_antiga)
@@ -162,36 +211,44 @@ def imprimir_gdi(linhas):
     dc.EndDoc()
     dc.DeleteDC()
 
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({'ok': True, 'status': 'Servidor ativo'})
-
-@app.route('/print', methods=['POST'])
+@app.route("/print", methods=["POST"])
 def imprimir():
     try:
         data = request.json or {}
-        print('=== DADOS RECEBIDOS ===')
+        print("=== DADOS RECEBIDOS ===")
         print(f"pet_nome:   {data.get('pet_nome')}")
+        print(f"pet_raca:   {data.get('pet_raca')}")
+        print(f"tutor_nome: {data.get('tutor_nome')}")
         print(f"servico:    {data.get('servico')}")
+        print(f"adicionais: {data.get('adicionais')}")
         print(f"hora:       {data.get('hora')}")
-        print('=======================')
+        print(f"data:       {data.get('data')}")
+        print("=======================")
         linhas = montar_linhas(data)
         imprimir_gdi(linhas)
-        print('[OK] Ficha impressa via GDI')
-        return jsonify({'ok': True})
+        print("[OK] Ficha impressa via GDI")
+        return jsonify({"ok": True})
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({'ok': False, 'erro': str(e)}), 500
+        return jsonify({"ok": False, "erro": str(e)}), 500
 
-if __name__ == '__main__':
-    print('=' * 45)
-    print('  Servidor de impressao MagaPet')
-    print(f'  Impressora: {PRINTER_NAME}')
-    print('  Rodando em http://localhost:5000')
-    print('  Mantenha esta janela aberta.')
-    print('=' * 45)
-    app.run(host='127.0.0.1', port=5000, debug=False)
+if __name__ == "__main__":
+    print("=" * 45)
+    print("  Servidor de impressao MagaPet")
+    print(f"  Impressora: {PRINTER_NAME}")
+    print("  Baixando CRM...")
+    print("=" * 45)
+
+    threading.Thread(target=carregar_crm, daemon=True).start()
+    threading.Thread(target=abrir_chrome, daemon=True).start()
+
+    print("  Rodando em http://127.0.0.1:5000")
+    print("  Chrome vai abrir automaticamente.")
+    print("  Mantenha esta janela aberta.")
+    print("=" * 45)
+
+    app.run(host="127.0.0.1", port=5000, debug=False)
 `;
 
 const conteudoReqs = `flask
