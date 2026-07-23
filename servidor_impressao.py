@@ -24,7 +24,9 @@ def montar_ficha(d):
     tutor_nome = d.get('tutor_nome', '-')
     taxi_dog   = d.get('taxi_dog', False)
     servico    = d.get('servico', '-')
-    adicionais = d.get('adicionais', '')
+    adicionais = d.get('adicionais', [])
+    if isinstance(adicionais, str):
+        adicionais = [a.strip() for a in adicionais.split(',') if a.strip()]
     hora       = d.get('hora', '')
     data_str   = d.get('data', '')
     try:
@@ -33,8 +35,8 @@ def montar_ficha(d):
     except:
         data_fmt = data_str
 
-    taxi_sim = '[X]' if taxi_dog else '[ ]'
-    taxi_nao = '[ ]' if taxi_dog else '[X]'
+    taxi_sim = '[ ]'
+    taxi_nao = '[ ]'
 
     buf = b''
     buf += sep('=')
@@ -50,7 +52,9 @@ def montar_ficha(d):
     buf += sep('-')
     buf += linha(f'Servico:   {servico}')
     if adicionais:
-        buf += linha(f'Adicionais: {adicionais}')
+        buf += linha('Adicionais:')
+        for ad in adicionais:
+            buf += linha(f'  - {ad}')
     buf += sep('-')
     buf += linha('Desembolo: [ ] Sim   [ ] Nao')
     buf += linha()

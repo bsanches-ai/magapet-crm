@@ -2849,7 +2849,7 @@ async function _imprimirFichaAtendimento(ag) {
   try {
     const dataHora = ag.data_hora ? new Date(ag.data_hora) : null;
     const dataStr = dataHora ? dataHora.toISOString().split('T')[0] : (ag.data || '');
-    const adicionaisTexto = (ag.adicionais || []).map(a => a.nome || a).join(', ');
+    const adicionaisTexto = (ag.adicionais || []).map(a => a.nome || a);
     await fetch('http://127.0.0.1:5000/print', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
