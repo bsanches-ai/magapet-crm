@@ -7,18 +7,16 @@ app = Flask(__name__)
 CORS(app, origins=["https://bsanches-ai.github.io", "http://localhost", "http://127.0.0.1"])
 
 PRINTER_NAME = "Daruma DR800"
+LARGURA = 42
 
-ESC = b'\x1b'
-GS  = b'\x1d'
+def linha(texto=''):
+    return (texto + '\r\n').encode('cp850', errors='replace')
 
-def init():         return ESC + b'@'
-def align(a):       return ESC + b'a' + (b'\x01' if a=='center' else b'\x02' if a=='right' else b'\x00')
-def bold(on):       return ESC + b'E' + (b'\x01' if on else b'\x00')
-def double(on):     return GS  + b'!' + (b'\x11' if on else b'\x00')
-def cut():          return GS  + b'V\x00'
-def txt(s):         return s.encode('cp850', errors='replace')
-def line(s=''):     return txt(s) + b'\n'
-def sep(c='-', n=42): return txt(c * n) + b'\n'
+def sep(c='-'):
+    return linha(c * LARGURA)
+
+def centralizar(texto):
+    return linha(texto.center(LARGURA))
 
 def montar_ficha(d):
     pet_nome    = d.get('pet_nome', '-')
@@ -39,46 +37,44 @@ def montar_ficha(d):
     sexo_label = ' (M)' if pet_sexo == 'M' else ' (F)' if pet_sexo == 'F' else ''
 
     buf = b''
-    buf += init()
-    buf += align('center') + double(True) + bold(True)
-    buf += line('MagaPet')
-    buf += double(False) + bold(False)
-    buf += line('Ficha de Atendimento')
     buf += sep('=')
-    buf += line(f'{data_fmt}  {hora}')
+    buf += centralizar('MagaPet')
+    buf += centralizar('Ficha de Atendimento')
+    buf += sep('=')
+    buf += centralizar(f'{data_fmt}  {hora}')
     buf += sep('-')
-    buf += align('left') + bold(True) + line('PET')
-    buf += bold(False)
-    buf += line(f'Nome:    {pet_nome}{sexo_label}')
-    buf += line(f'Raca:    {pet_raca}')
-    buf += line(f'Porte:   {pet_porte}   Pelagem: {pet_pelagem}')
-    buf += line(f'Tutor:   {tutor_nome}')
+    buf += linha('PET')
+    buf += linha(f'Nome:    {pet_nome}{sexo_label}')
+    buf += linha(f'Raca:    {pet_raca}')
+    buf += linha(f'Porte:   {pet_porte}   Pelagem: {pet_pelagem}')
+    buf += linha(f'Tutor:   {tutor_nome}')
     buf += sep('-')
-    buf += bold(True) + line('SERVICO') + bold(False)
-    buf += line(servico)
+    buf += linha('SERVICO')
+    buf += linha(servico)
     if adicionais:
-        buf += line(f'+ {adicionais}')
+        buf += linha(f'+ {adicionais}')
     buf += sep('=')
-    buf += bold(True) + line('Precisou de desembolo?') + bold(False)
-    buf += line()
-    buf += line('  [ ] Sim          [ ] Nao')
-    buf += line()
-    buf += bold(True) + line('Nivel de desembolo:') + bold(False)
-    buf += line()
-    buf += line('  [ ]1  [ ]2  [ ]3  [ ]4  [ ]5')
-    buf += line()
+    buf += linha('Precisou de desembolo?')
+    buf += linha()
+    buf += linha('  [ ] Sim          [ ] Nao')
+    buf += linha()
+    buf += linha('Nivel de desembolo:')
+    buf += linha()
+    buf += linha('  [ ]1  [ ]2  [ ]3  [ ]4  [ ]5')
+    buf += linha()
     buf += sep('-')
-    buf += bold(True) + line('Observacoes:') + bold(False)
-    buf += line()
-    buf += line('_' * 42)
-    buf += line()
-    buf += line('_' * 42)
-    buf += line()
-    buf += line('_' * 42)
-    buf += line()
+    buf += linha('Observacoes:')
+    buf += linha()
+    buf += linha('_' * LARGURA)
+    buf += linha()
+    buf += linha('_' * LARGURA)
+    buf += linha()
+    buf += linha('_' * LARGURA)
+    buf += linha()
     buf += sep('=')
-    buf += b'\n\n\n'
-    buf += cut()
+    buf += linha()
+    buf += linha()
+    buf += linha()
     return buf
 
 @app.route('/health', methods=['GET'])
