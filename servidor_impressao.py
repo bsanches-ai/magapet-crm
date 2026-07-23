@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import win32print
 import datetime
+import subprocess
 
 app = Flask(__name__)
 CORS(app, origins=["https://bsanches-ai.github.io", "http://localhost", "http://127.0.0.1"])
@@ -82,16 +82,12 @@ def health():
 def imprimir():
     try:
         data = request.json or {}
-        buf = montar_ficha(data)
-        hPrinter = win32print.OpenPrinter(PRINTER_NAME)
-        try:
-            win32print.StartDocPrinter(hPrinter, 1, ('MagaPet Ficha', None, 'TEXT'))
-            win32print.StartPagePrinter(hPrinter)
-            win32print.WritePrinter(hPrinter, buf)
-            win32print.EndPagePrinter(hPrinter)
-            win32print.EndDocPrinter(hPrinter)
-        finally:
-            win32print.ClosePrinter(hPrinter)
+        conteudo = montar_ficha(data).decode('cp850', errors='replace')
+        tmp = 'C:\\MagaPet\\impressao\\ficha_temp.txt'
+        with open(tmp, 'w', encoding='cp850', errors='replace') as f:
+            f.write(conteudo)
+        import subprocess
+        subprocess.run(f'print /d:"{PRINTER_NAME}" "{tmp}"', shell=True)
         return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'erro': str(e)}), 500
