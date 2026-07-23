@@ -192,6 +192,12 @@ def imprimir():
         return jsonify({"ok": False, "erro": str(e)}), 500
 
 if __name__ == "__main__":
+    import socket
+    try:
+        ip_local = socket.gethostbyname(socket.gethostname())
+    except Exception:
+        ip_local = "127.0.0.1"
+
     print("=" * 45)
     print("  Servidor de impressao MagaPet")
     print(f"  Impressora: {PRINTER_NAME}")
@@ -201,9 +207,10 @@ if __name__ == "__main__":
     threading.Thread(target=carregar_crm, daemon=True).start()
     threading.Thread(target=abrir_chrome, daemon=True).start()
 
-    print("  Rodando em http://127.0.0.1:5000")
+    print(f"  Computador: http://127.0.0.1:5000")
+    print(f"  Celular:    http://{ip_local}:5000")
     print("  Chrome vai abrir automaticamente.")
     print("  Mantenha esta janela aberta.")
     print("=" * 45)
 
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=False)

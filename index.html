@@ -2851,7 +2851,7 @@ async function _imprimirFichaAtendimento(ag) {
     const dataStr = dataHora ? dataHora.toISOString().split('T')[0] : (ag.data || '');
     const adicionaisTexto = (ag.adicionais || []).map(a => a.nome || a);
     console.log('[PRINT] enviando para servidor:', ag.pet_nome, ag.servico);
-    await fetch('http://127.0.0.1:5000/print', {
+    await fetch(`http://${location.hostname}:5000/print`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
