@@ -2854,16 +2854,14 @@ async function _imprimirFichaAtendimento(ag) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        pet_nome:    ag.pet_nome || '',
-        pet_raca:    ag.pet_raca || '',
-        pet_porte:   ag.pet_porte || '',
-        pet_pelagem: ag.pet_pelagem || '',
-        pet_sexo:    ag.pet_sexo || '',
-        tutor_nome:  ag.tutor_nome || ag.nome_tutor || '',
-        servico:     ag.servico || '',
-        adicionais:  adicionaisTexto,
-        hora:        ag.hora || '',
-        data:        dataStr
+        pet_nome:   ag.pet_nome || '',
+        pet_raca:   ag.pet_raca || '',
+        tutor_nome: ag.tutor_nome || ag.nome_tutor || '',
+        taxi_dog:   ag.taxi_dog || false,
+        servico:    ag.servico || '',
+        adicionais: adicionaisTexto,
+        hora:       ag.hora || '',
+        data:       dataStr
       }),
       signal: AbortSignal.timeout(3000)
     });
