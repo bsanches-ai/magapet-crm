@@ -85,7 +85,7 @@ def imprimir():
         buf = montar_ficha(data)
         hPrinter = win32print.OpenPrinter(PRINTER_NAME)
         try:
-            win32print.StartDocPrinter(hPrinter, 1, ('MagaPet Ficha', None, 'RAW'))
+            win32print.StartDocPrinter(hPrinter, 1, ('MagaPet Ficha', None, 'TEXT'))
             win32print.StartPagePrinter(hPrinter)
             win32print.WritePrinter(hPrinter, buf)
             win32print.EndPagePrinter(hPrinter)
