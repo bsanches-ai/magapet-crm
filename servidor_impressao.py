@@ -1,29 +1,16 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import win32ui
+import win32con
+import win32print
 import datetime
 
 app = Flask(__name__)
 CORS(app, origins=["https://bsanches-ai.github.io", "http://localhost", "http://127.0.0.1"])
 
-PORTA    = 'COM3'
-LARGURA  = 42
+PRINTER_NAME = "Daruma DR800"
 
-ESC = b'\x1b'
-GS  = b'\x1d'
-
-def init():            return ESC + b'@'
-def align_center():    return ESC + b'a\x01'
-def align_left():      return ESC + b'a\x00'
-def bold_on():         return ESC + b'E\x01'
-def bold_off():        return ESC + b'E\x00'
-def cut():             return GS  + b'V\x00'
-def feed(n=3):         return ESC + b'd' + bytes([n])
-def txt(s):            return s.encode('cp850', errors='replace')
-def linha(s=''):       return txt(s) + b'\n'
-def sep(c='-'):        return txt(c * LARGURA) + b'\n'
-def central(s):        return txt(s.center(LARGURA)) + b'\n'
-
-def montar_ficha(d):
+def montar_linhas(d):
     pet_nome   = d.get('pet_nome', '-')
     pet_raca   = d.get('pet_raca', '-')
     tutor_nome = d.get('tutor_nome', '-')
@@ -40,41 +27,79 @@ def montar_ficha(d):
     try:
         dt = datetime.datetime.strptime(data_str, '%Y-%m-%d')
         data_fmt = dt.strftime('%d/%m/%Y')
-    except:
+    except Exception:
         data_fmt = data_str
 
-    buf = b''
-    buf += linha('==========================================')
-    buf += linha('MagaPet')
-    buf += linha('Ficha de Atendimento')
-    buf += linha(f'{data_fmt}  {hora}')
-    buf += linha('==========================================')
-    buf += linha(f'Nome:      {pet_nome}')
-    buf += linha(f'Raca:      {pet_raca}')
-    buf += linha(f'Tutor:     {tutor_nome}')
-    buf += linha('------------------------------------------')
-    buf += linha('Taxi Dog:  [ ] Sim   [ ] Nao')
-    buf += linha('------------------------------------------')
-    buf += linha(f'Servico:   {servico}')
+    L = 42
+    linhas = [
+        '=' * L,
+        '        MagaPet',
+        '   Ficha de Atendimento',
+        f'   {data_fmt}  {hora}',
+        '=' * L,
+        f'Nome:      {pet_nome}',
+        f'Raca:      {pet_raca}',
+        f'Tutor:     {tutor_nome}',
+        '-' * L,
+        'Taxi Dog:  [ ] Sim   [ ] Nao',
+        '-' * L,
+        f'Servico:   {servico}',
+    ]
     if adicionais:
-        buf += linha('Adicionais:')
+        linhas.append('Adicionais:')
         for ad in adicionais:
-            buf += linha(f'  - {ad}')
-    buf += linha('------------------------------------------')
-    buf += linha('Desembolo: [ ] Sim   [ ] Nao')
-    buf += linha()
-    buf += linha('Nivel: [ ]1  [ ]2  [ ]3  [ ]4  [ ]5')
-    buf += linha('------------------------------------------')
-    buf += linha('Observacao:')
-    buf += linha()
-    buf += linha('__________________________________________')
-    buf += linha()
-    buf += linha('__________________________________________')
-    buf += linha('==========================================')
-    buf += linha()
-    buf += linha()
-    buf += linha()
-    return buf
+            linhas.append(f'  - {ad}')
+    linhas += [
+        '-' * L,
+        'Desembolo: [ ] Sim   [ ] Nao',
+        '',
+        'Nivel: [ ]1  [ ]2  [ ]3  [ ]4  [ ]5',
+        '-' * L,
+        'Observacao:',
+        '',
+        '_' * L,
+        '',
+        '_' * L,
+        '=' * L,
+        '',
+        '',
+        '',
+    ]
+    return linhas
+
+def imprimir_gdi(linhas):
+    dc = win32ui.CreateDC()
+    dc.CreatePrinterDC(PRINTER_NAME)
+    dc.StartDoc("MagaPet Ficha")
+    dc.StartPage()
+
+    dpi_x = dc.GetDeviceCaps(win32con.LOGPIXELSX)
+    dpi_y = dc.GetDeviceCaps(win32con.LOGPIXELSY)
+
+    # Fonte monoespaçada 9pt (negativo = tamanho em pontos lógicos)
+    altura_fonte = -int(dpi_y * 9 / 72)
+    fonte = win32ui.CreateFont({
+        'name': 'Courier New',
+        'height': altura_fonte,
+        'weight': win32con.FW_NORMAL,
+        'charset': win32con.ANSI_CHARSET,
+    })
+    fonte_antiga = dc.SelectObject(fonte)
+
+    tm = dc.GetTextMetrics()
+    altura_linha = tm['tmHeight'] + tm['tmExternalLeading'] + 2
+
+    x = int(dpi_x * 0.03)
+    y = int(dpi_y * 0.05)
+
+    for linha in linhas:
+        dc.TextOut(x, y, linha if linha else ' ')
+        y += altura_linha
+
+    dc.SelectObject(fonte_antiga)
+    dc.EndPage()
+    dc.EndDoc()
+    dc.DeleteDC()
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -93,17 +118,19 @@ def imprimir():
         print(f"hora:       {data.get('hora')}")
         print(f"data:       {data.get('data')}")
         print('=======================')
-        buf  = montar_ficha(data)
-        with open(f'\\\\.\\{PORTA}', 'wb') as porta:
-            porta.write(buf)
+        linhas = montar_linhas(data)
+        imprimir_gdi(linhas)
+        print('[OK] Ficha impressa via GDI')
         return jsonify({'ok': True})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'erro': str(e)}), 500
 
 if __name__ == '__main__':
     print('=' * 45)
     print('  Servidor de impressao MagaPet')
-    print(f'  Porta: {PORTA}')
+    print(f'  Impressora: {PRINTER_NAME}')
     print('  Rodando em http://localhost:5000')
     print('  Mantenha esta janela aberta.')
     print('=' * 45)
