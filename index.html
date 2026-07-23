@@ -2850,6 +2850,7 @@ async function _imprimirFichaAtendimento(ag) {
     const dataHora = ag.data_hora ? new Date(ag.data_hora) : null;
     const dataStr = dataHora ? dataHora.toISOString().split('T')[0] : (ag.data || '');
     const adicionaisTexto = (ag.adicionais || []).map(a => a.nome || a);
+    console.log('[PRINT] enviando para servidor:', ag.pet_nome, ag.servico);
     await fetch('http://127.0.0.1:5000/print', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2862,10 +2863,10 @@ async function _imprimirFichaAtendimento(ag) {
         adicionais: adicionaisTexto,
         hora:       ag.hora || '',
         data:       dataStr
-      }),
-      signal: AbortSignal.timeout(3000)
+      })
     });
-  } catch {
+  } catch(e) {
+    console.error('[PRINT] erro:', e.message);
     // Servidor offline — não bloqueia o fluxo
   }
 }
