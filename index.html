@@ -2874,6 +2874,9 @@ async function _imprimirFichaAtendimento(ag) {
 async function marcarPronto(id) {
   const ag = agendamentos.find(a => a.id === id);
   if (!ag) return;
+
+  await _verificarPacoteNoPronto(ag);
+
   try {
     await fetch(`${N8N_ATENDIMENTO}/pronto`, {
       method: 'POST',
@@ -2885,6 +2888,56 @@ async function marcarPronto(id) {
   showToast(`${ag.pet_nome} marcad${ag.pet_sexo === 'F' ? 'a' : 'o'} como pronto! 🎉`, 'success');
   renderAgenda();
   updateSummary();
+}
+
+async function _verificarPacoteNoPronto(ag) {
+  if (!ag.cliente_id || !ag.servico_id || ag.usou_pacote) return;
+  try {
+    const petPorte = (ag.pet_porte || '').toUpperCase();
+    const portesAceitos = petPorte === 'PP' ? ['PP', 'P', ''] : [petPorte, ''];
+    const pacotes = await sbGet('cliente_pacotes',
+      `cliente_id=eq.${ag.cliente_id}&ativo=eq.true&select=id,saldos,porte`
+    );
+
+    let pacoteEncontrado = null;
+    let entryEncontrada = null;
+    for (const pac of (pacotes || [])) {
+      const porte = (pac.porte || '').toUpperCase();
+      if (!portesAceitos.includes(porte)) continue;
+      const saldos = pac.saldos || {};
+      const raw = saldos[ag.servico_id];
+      if (!raw) continue;
+      const restante = typeof raw === 'object' ? raw.restante : raw;
+      if (restante > 0) {
+        pacoteEncontrado = pac;
+        entryEncontrada = typeof raw === 'object' ? raw : { nome: ag.servico, restante: raw, quantidade: raw, preco_unit: 0 };
+        break;
+      }
+    }
+
+    if (pacoteEncontrado) {
+      const restante = entryEncontrada.restante;
+      const msg = `🎟️ Pacote disponível!\n\n${entryEncontrada.nome}: ${restante} sessão${restante > 1 ? 'ões' : ''} restante${restante > 1 ? 's' : ''}\n\nUsar saldo do pacote neste atendimento?`;
+      if (confirm(msg)) {
+        await _debitarPacote(ag, pacoteEncontrado, entryEncontrada);
+      }
+      return;
+    }
+
+    // Legado: saldo_banhos
+    if ((ag.saldo_pacote || 0) > 0) {
+      const msg = `🎟️ Pacote disponível!\n\nBanhos restantes: ${ag.saldo_pacote}\n\nUsar saldo do pacote neste atendimento?`;
+      if (confirm(msg)) {
+        await sbPatch('agendamentos', `id=eq.${ag.id}`, { usou_pacote: true });
+        ag.usou_pacote = true;
+        ag._legacyDebitPending = true;
+        ag.valor = 0;
+        showToast('🎟️ Pacote confirmado!', 'success');
+      }
+    }
+  } catch(e) {
+    console.error('[Pacote] Erro ao verificar no Pronto:', e.message);
+  }
 }
 
 async function marcarEntregue(id, usouPacote = false, legacyN8nDebit = false) {
@@ -2929,6 +2982,7 @@ async function marcarEntregue(id, usouPacote = false, legacyN8nDebit = false) {
 async function checarEntregue(id) {
   const ag = agendamentos.find(a => a.id === id);
   if (!ag || !ag.cliente_id || !ag.servico_id) { marcarEntregue(id); return; }
+  if (ag.usou_pacote) { marcarEntregue(id, true, ag._legacyDebitPending || false); return; }
 
   try {
     const petPorte = (ag.pet_porte || '').toUpperCase();
@@ -2977,7 +3031,10 @@ async function checarEntregue(id) {
     const msg = `🎟️ Pacote disponível!\n\n${entryEncontrada.nome}: ${restante} sessão${restante > 1 ? 'ões' : ''} restante${restante > 1 ? 's' : ''}\n\nSem pacote: ${formatMoney(valorServico)}\nCom pacote: ${formatMoney(0)}\n\nUsar saldo do pacote?`;
 
     if (confirm(msg)) {
-      await _debitarPacoteEntrega(ag, pacoteEncontrado, entryEncontrada);
+      try {
+        await _debitarPacote(ag, pacoteEncontrado, entryEncontrada);
+      } catch(e) {}
+      marcarEntregue(ag.id, true);
     } else {
       marcarEntregue(id, false);
     }
@@ -2986,7 +3043,7 @@ async function checarEntregue(id) {
   }
 }
 
-async function _debitarPacoteEntrega(ag, pacote, entry) {
+async function _debitarPacote(ag, pacote, entry) {
   try {
     const saldos = JSON.parse(JSON.stringify(pacote.saldos || {}));
     const raw = saldos[ag.servico_id];
@@ -3020,10 +3077,12 @@ async function _debitarPacoteEntrega(ag, pacote, entry) {
       pacote_id: pacote.id
     });
 
-    marcarEntregue(ag.id, true);
+    ag.usou_pacote = true;
+    ag.valor = 0;
+    showToast('🎟️ Pacote debitado!', 'success');
   } catch(e) {
     showToast('Erro ao debitar pacote', 'error');
-    marcarEntregue(ag.id, false);
+    throw e;
   }
 }
 
