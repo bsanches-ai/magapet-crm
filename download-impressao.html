@@ -62,6 +62,16 @@
 <script>
 const conteudoServidor = `from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
+import os, sys
+
+# Fix pywin32 DLL loading no Python 3.8+
+_pywin32_dir = os.path.join(os.path.dirname(os.__file__), "site-packages", "pywin32_system32")
+if os.path.exists(_pywin32_dir):
+    os.add_dll_directory(_pywin32_dir)
+_win32_dir = os.path.join(os.path.dirname(os.__file__), "site-packages", "win32")
+if os.path.exists(_win32_dir):
+    os.add_dll_directory(_win32_dir)
+
 import win32ui
 import win32con
 import win32print
