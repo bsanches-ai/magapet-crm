@@ -169,6 +169,13 @@
           <option value="longo">Longo</option>
         </select>
       </div>
+      <div class="field">
+        <label>Sexo</label>
+        <select id="pSexo">
+          <option value="M">Macho</option>
+          <option value="F">Fêmea</option>
+        </select>
+      </div>
     </div>
 
     <!-- PACOTE -->
@@ -484,7 +491,7 @@ async function salvar() {
           tenant_id: TENANT_ID, cliente_id: clienteId,
           nome: petNome, raca: document.getElementById('pRaca').value,
           porte: petPorte, pelagem: document.getElementById('pPelagem').value,
-          especie: 'canina', historico: [], sexo: 'M'
+          especie: 'canina', historico: [], sexo: document.getElementById('pSexo').value
         })
       });
       if (rp.ok) { const d = await rp.json(); petId = d?.[0]?.id || d?.id || null; }
@@ -578,6 +585,7 @@ function resetForm() {
   document.getElementById('pRaca').value = '';
   document.getElementById('pPorte').value = '';
   document.getElementById('pPelagem').value = 'curto';
+  document.getElementById('pSexo').value = 'M';
   document.getElementById('valor').value = '';
   valorEditado = false;
   porteAtual = 'p';
