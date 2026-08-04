@@ -37,10 +37,7 @@
     max-height: 160px; overflow-y: auto; z-index: 100;
     box-shadow: 0 4px 16px rgba(0,0,0,.3);
   }
-  .dropdown-item {
-    padding: 10px 14px; cursor: pointer; font-size: 13px;
-    border-bottom: 1px solid var(--border);
-  }
+  .dropdown-item { padding: 10px 14px; cursor: pointer; font-size: 13px; border-bottom: 1px solid var(--border); }
   .dropdown-item:hover { background: var(--bg3); }
   .dropdown-item:last-child { border-bottom: none; }
   .tag-sel {
@@ -49,6 +46,28 @@
   }
   .toggle-novo { font-size: 11px; padding: 4px 10px; background: var(--bg2); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; margin-top: 6px; }
   .novo-campos { display: none; margin-top: 10px; }
+
+  /* ── Pet blocks ── */
+  .pet-block {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
+  }
+  .pet-block-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+  }
+  .pet-block-label { font-size: 12px; font-weight: 700; color: var(--blue); }
+  .btn-remove-pet {
+    font-size: 11px; padding: 3px 9px; background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 6px; cursor: pointer; display: none;
+    font-family: inherit; transition: all .12s;
+  }
+  .btn-remove-pet:hover { color: #d95f52; border-color: #d95f52; }
+  .btn-add-pet {
+    width: 100%; padding: 10px; background: transparent; color: var(--blue);
+    border: 1px dashed var(--blue); border-radius: 8px; font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: inherit; margin-bottom: 4px; transition: background .15s;
+  }
+  .btn-add-pet:hover { background: rgba(126,184,247,.07); }
 
   .btn-porte {
     padding: 5px 16px; border: 1px solid var(--border); border-radius: 8px;
@@ -63,16 +82,10 @@
   .srv-row { display: grid; grid-template-columns: 1fr 72px 72px; gap: 6px; align-items: center; padding: 3px 0; }
   .srv-nome { font-size: 12px; color: var(--text); }
   .srv-preco { font-size: 11px; color: var(--muted); }
-  .qty-input {
-    text-align: center; border: 1px solid var(--border); border-radius: 6px;
-    padding: 4px; font-size: 13px; background: var(--bg);
-  }
+  .qty-input { text-align: center; border: 1px solid var(--border); border-radius: 6px; padding: 4px; font-size: 13px; background: var(--bg); }
   .qty-usado { color: var(--orange); }
 
-  .summary {
-    background: var(--bg2); border-radius: 10px; padding: 12px 14px; margin: 14px 0;
-    font-size: 13px;
-  }
+  .summary { background: var(--bg2); border-radius: 10px; padding: 12px 14px; margin: 14px 0; font-size: 13px; }
   .summary-row { display: flex; justify-content: space-between; padding: 3px 0; }
   .aviso { display: none; font-size: 12px; color: var(--orange); margin-bottom: 8px; }
 
@@ -88,8 +101,7 @@
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
     background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
     padding: 12px 20px; font-size: 14px; font-weight: 600; color: var(--cream);
-    box-shadow: 0 4px 20px rgba(0,0,0,.4); transition: transform .3s; z-index: 999;
-    white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(0,0,0,.4); transition: transform .3s; z-index: 999; white-space: nowrap;
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
   .toast.success { border-color: var(--green); color: var(--green); }
@@ -99,12 +111,8 @@
   .success-icon { font-size: 56px; margin-bottom: 16px; }
   .success-title { font-size: 20px; font-weight: 700; color: var(--cream); margin-bottom: 8px; }
   .success-sub { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
-  .btn-novo { padding: 10px 24px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
-  .btn-novo:hover { border-color: var(--blue); color: var(--blue); }
 
-  @media (max-width: 480px) {
-    .form-grid { grid-template-columns: 1fr; }
-  }
+  @media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -144,39 +152,10 @@
       </div>
     </div>
 
-    <!-- PET -->
-    <div class="section-label">🐶 Pet</div>
-    <div class="form-grid">
-      <div class="field"><label>Nome do pet *</label><input type="text" id="pNome" placeholder="Ex: Thor"></div>
-      <div class="field"><label>Raça</label><input type="text" id="pRaca" placeholder="Ex: Golden Retriever"></div>
-    </div>
-    <div class="form-grid">
-      <div class="field">
-        <label>Porte *</label>
-        <select id="pPorte" onchange="onPortePetChange(this.value)">
-          <option value="">Selecione</option>
-          <option value="PP">PP</option>
-          <option value="P">P</option>
-          <option value="M">M</option>
-          <option value="G">G</option>
-          <option value="GG">GG</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Pelagem</label>
-        <select id="pPelagem">
-          <option value="curto">Curto</option>
-          <option value="longo">Longo</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Sexo</label>
-        <select id="pSexo">
-          <option value="M">Macho</option>
-          <option value="F">Fêmea</option>
-        </select>
-      </div>
-    </div>
+    <!-- PETS -->
+    <div class="section-label">🐶 Pets</div>
+    <div id="petsContainer"></div>
+    <button type="button" class="btn-add-pet" onclick="addPet()">+ Adicionar pet</button>
 
     <!-- PACOTE -->
     <div class="section-label">🎟️ Pacote</div>
@@ -192,7 +171,6 @@
     <div id="srvList"></div>
     <div class="aviso" id="aviso"></div>
 
-    <!-- Datas de uso — aparece só se tiver qty usado > 0 -->
     <div id="datasUsoSection" style="display:none;margin-bottom:14px;">
       <div style="font-size:12px;font-weight:700;color:var(--orange);margin-bottom:8px;">📅 Quando foram usados?</div>
       <div id="datasUsoList"></div>
@@ -239,7 +217,88 @@ const N8N_CAD   = 'https://n8n-eogk.srv1598428.hstgr.cloud/webhook/crm-cadastro-
 let servicos = [];
 let porteAtual = 'p';
 let valorEditado = false;
+let petIdx = 0;
 
+// ── Pet blocks ──────────────────────────────────────────
+function petBlockHTML(idx) {
+  return `
+  <div class="pet-block" data-idx="${idx}">
+    <div class="pet-block-header">
+      <span class="pet-block-label">Pet ${idx + 1}</span>
+      <button type="button" class="btn-remove-pet" onclick="removePet(${idx})">× Remover</button>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Nome do pet *</label><input type="text" class="p-nome" placeholder="Ex: Thor"></div>
+      <div class="field"><label>Raça</label><input type="text" class="p-raca" placeholder="Ex: Lhasa"></div>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label>Porte *</label>
+        <select class="p-porte" onchange="onPortePetChange(this.value)">
+          <option value="">Selecione</option>
+          <option value="PP">PP</option>
+          <option value="P">P</option>
+          <option value="M">M</option>
+          <option value="G">G</option>
+          <option value="GG">GG</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Pelagem</label>
+        <select class="p-pelagem">
+          <option value="curto">Curto</option>
+          <option value="longo">Longo</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Sexo</label>
+        <select class="p-sexo">
+          <option value="M">Macho</option>
+          <option value="F">Fêmea</option>
+        </select>
+      </div>
+    </div>
+  </div>`;
+}
+
+function addPet() {
+  const container = document.getElementById('petsContainer');
+  const div = document.createElement('div');
+  div.innerHTML = petBlockHTML(petIdx++);
+  container.appendChild(div.firstElementChild);
+  updateRemoveButtons();
+}
+
+function removePet(idx) {
+  const block = document.querySelector(`.pet-block[data-idx="${idx}"]`);
+  if (block) block.remove();
+  renumberPets();
+  updateRemoveButtons();
+}
+
+function renumberPets() {
+  document.querySelectorAll('.pet-block').forEach((block, i) => {
+    block.dataset.idx = i;
+    block.querySelector('.pet-block-label').textContent = `Pet ${i + 1}`;
+    block.querySelector('.btn-remove-pet').setAttribute('onclick', `removePet(${i})`);
+  });
+  petIdx = document.querySelectorAll('.pet-block').length;
+}
+
+function updateRemoveButtons() {
+  const blocks = document.querySelectorAll('.pet-block');
+  blocks.forEach(b => {
+    b.querySelector('.btn-remove-pet').style.display = blocks.length > 1 ? 'inline-block' : 'none';
+  });
+}
+
+function initPets() {
+  petIdx = 0;
+  document.getElementById('petsContainer').innerHTML = '';
+  addPet();
+}
+
+// ── Supabase helpers ────────────────────────────────────
 async function sbGet(table, params = '') {
   const r = await fetch(`${SB_URL}/rest/v1/${table}?${params}`, {
     headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` }
@@ -275,15 +334,16 @@ function getPreco(srv, porte) {
   return null;
 }
 
-// Carregar clientes e serviços
+// ── Init ────────────────────────────────────────────────
 async function init() {
   document.getElementById('dataAdesao').value = new Date().toISOString().split('T')[0];
+  initPets();
   const srvs = await sbGet('tenant_servicos', `tenant_id=eq.${TENANT_ID}&ativo=eq.true&order=categoria,nome`);
   servicos = srvs || [];
   renderServicos();
 }
 
-// CLIENTE
+// ── Cliente ─────────────────────────────────────────────
 async function buscarCliente() {
   const q = (document.getElementById('cBusca').value || '').trim();
   const dd = document.getElementById('cDropdown');
@@ -297,10 +357,7 @@ async function buscarCliente() {
       ? `tenant_id=eq.${TENANT_ID}&telefone=ilike.${pat}&select=id,nome,telefone&limit=8`
       : `tenant_id=eq.${TENANT_ID}&nome=ilike.${pat}&select=id,nome,telefone&order=nome&limit=8`;
     const m = await sbGet('clientes', filter);
-    if (!m || !m.length || m.code) {
-      dd.innerHTML = '<div class="dropdown-item" style="color:var(--muted)">Nenhum cliente encontrado</div>';
-      return;
-    }
+    if (!m || !m.length || m.code) { dd.innerHTML = '<div class="dropdown-item" style="color:var(--muted)">Nenhum cliente encontrado</div>'; return; }
     dd.innerHTML = m.map(c =>
       `<div class="dropdown-item" onclick="selecionarCliente('${c.id}','${(c.nome||'').replace(/'/g,"\\'")}','${c.telefone||''}')">
         <strong>${c.nome}</strong> <span style="color:var(--muted);font-size:12px;">${c.telefone||''}</span>
@@ -325,12 +382,8 @@ function toggleNovo() {
   const aberto = c.style.display !== 'none';
   c.style.display = aberto ? 'none' : 'block';
   document.getElementById('btnNovo').textContent = aberto ? '+ Novo cliente' : '− Cancelar';
-  if (!aberto) {
-    document.getElementById('cId').value = '';
-    document.getElementById('cSel').style.display = 'none';
-  }
+  if (!aberto) { document.getElementById('cId').value = ''; document.getElementById('cSel').style.display = 'none'; }
 }
-
 async function verificarTelefone() {
   const tel = (document.getElementById('cTel').value || '').trim();
   const aviso = document.getElementById('telAviso');
@@ -339,7 +392,6 @@ async function verificarTelefone() {
   const res = await sbGet('clientes', `tenant_id=eq.${TENANT_ID}&telefone=eq.${telNorm}&select=id,nome&limit=1`);
   if (!Array.isArray(res) || !res.length) { aviso.style.display = 'none'; return; }
   const cli = res[0];
-  // Cliente já existe: auto-seleciona e fecha o formulário de novo cliente
   document.getElementById('cId').value = cli.id;
   document.getElementById('cNome').value = cli.nome;
   const sel = document.getElementById('cSel');
@@ -348,20 +400,17 @@ async function verificarTelefone() {
   aviso.textContent = `⚠️ Número já cadastrado como "${cli.nome}" — pacote será vinculado a este cliente.`;
   aviso.style.display = 'block';
 }
-
 function limparCliente() {
   document.getElementById('cId').value = '';
   document.getElementById('cSel').style.display = 'none';
   document.getElementById('telAviso').style.display = 'none';
 }
 
-// PET
+// ── Pacote ──────────────────────────────────────────────
 function onPortePetChange(v) {
   const map = { PP: 'p', P: 'p', M: 'm', G: 'g', GG: 'g' };
   if (map[v]) setPorte(map[v]);
 }
-
-// PACOTE — porte e serviços
 function setPorte(p) {
   porteAtual = p;
   document.querySelectorAll('[data-porte]').forEach(b => b.classList.toggle('active', b.dataset.porte === p));
@@ -381,8 +430,7 @@ function renderServicos() {
       html += `<div class="srv-row">
         <div class="srv-nome">${s.nome} <span class="srv-preco">${precoStr}</span></div>
         <input type="number" class="qty-input qty-total" min="0" value="0"
-          data-id="${s.id}" data-nome="${s.nome}" data-preco="${preco || 0}"
-          oninput="calcular()">
+          data-id="${s.id}" data-nome="${s.nome}" data-preco="${preco || 0}" oninput="calcular()">
         <input type="number" class="qty-input qty-usado" min="0" value="0"
           data-id="${s.id}" oninput="calcular()">
       </div>`;
@@ -393,22 +441,18 @@ function renderServicos() {
 }
 function calcular() {
   let total = 0;
-  const semPreco = [];
-  const comUso = [];
-
+  const semPreco = [], comUso = [];
   document.querySelectorAll('.qty-total').forEach(inp => {
     const qty = parseInt(inp.value) || 0;
     if (!qty) return;
     const preco = parseFloat(inp.dataset.preco) || 0;
     if (preco) total += preco * qty;
     else semPreco.push(inp.dataset.nome);
-
     const id = inp.dataset.id;
     const uEl = document.querySelector(`.qty-usado[data-id="${id}"]`);
     const usado = parseInt(uEl?.value) || 0;
     if (usado > 0) comUso.push({ id, nome: inp.dataset.nome, usado });
   });
-
   const sug = Math.round(total * 0.9);
   document.getElementById('totalTabela').textContent = `R$ ${total.toLocaleString('pt-BR')}`;
   document.getElementById('sugestao').textContent = `R$ ${sug.toLocaleString('pt-BR')}`;
@@ -416,17 +460,13 @@ function calcular() {
   if (semPreco.length) { av.style.display = 'block'; av.textContent = `⚠️ Sob avaliação (não incluso no total): ${semPreco.join(', ')}`; }
   else av.style.display = 'none';
   if (!valorEditado) document.getElementById('valor').value = sug || '';
-
-  // Seção de datas de uso
   const sec = document.getElementById('datasUsoSection');
   const list = document.getElementById('datasUsoList');
   if (!comUso.length) { sec.style.display = 'none'; return; }
   sec.style.display = 'block';
-  // Manter datas já preenchidas
   const datasExistentes = {};
   list.querySelectorAll('[data-uso-id]').forEach(el => {
-    const key = `${el.dataset.usoId}__${el.dataset.usoIdx || 0}`;
-    datasExistentes[key] = el.value;
+    datasExistentes[`${el.dataset.usoId}__${el.dataset.usoIdx || 0}`] = el.value;
   });
   list.innerHTML = comUso.map(u => {
     let rows = `<div style="font-size:12px;font-weight:600;color:var(--text);padding:6px 0 2px;">${u.nome}</div>`;
@@ -443,7 +483,7 @@ function calcular() {
   }).join('');
 }
 
-// SALVAR
+// ── Salvar ──────────────────────────────────────────────
 async function salvar() {
   const btn = document.getElementById('btnSalvar');
   btn.disabled = true;
@@ -458,7 +498,6 @@ async function salvar() {
       const tel  = document.getElementById('cTel').value.trim();
       if (!nome || !tel) { showToast('Preencha nome e WhatsApp', 'error'); return; }
       const telNorm = normalizarTel(tel);
-      // Verifica se telefone já existe antes de tentar criar
       const existente = await sbGet('clientes', `tenant_id=eq.${TENANT_ID}&telefone=eq.${telNorm}&select=id&limit=1`);
       if (Array.isArray(existente) && existente.length) {
         clienteId = existente[0].id;
@@ -469,7 +508,6 @@ async function salvar() {
         });
         const d = await r.json();
         clienteId = d?.id || d?.[0]?.id;
-        // Fallback: se n8n retornou 409 (telefone duplicado), busca o cliente existente
         if (!clienteId && !r.ok) {
           const fb = await sbGet('clientes', `tenant_id=eq.${TENANT_ID}&telefone=eq.${telNorm}&select=id&limit=1`);
           if (Array.isArray(fb) && fb.length) clienteId = fb[0].id;
@@ -479,37 +517,38 @@ async function salvar() {
     }
     if (!clienteId) { showToast('Selecione ou crie um cliente', 'error'); return; }
 
-    // 2. Pet
-    const petNome  = document.getElementById('pNome').value.trim();
-    const petPorte = document.getElementById('pPorte').value;
-    if (!petNome || !petPorte) { showToast('Preencha nome e porte do pet', 'error'); return; }
-    let petId = null;
-    try {
-      const rp = await fetch(`${N8N_CAD}/novo-pet`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenant_id: TENANT_ID, cliente_id: clienteId,
-          nome: petNome, raca: document.getElementById('pRaca').value,
-          porte: petPorte, pelagem: document.getElementById('pPelagem').value,
-          especie: 'canina', historico: [], sexo: document.getElementById('pSexo').value
-        })
-      });
-      if (rp.ok) { const d = await rp.json(); petId = d?.[0]?.id || d?.id || null; }
-    } catch (ePet) { console.warn('novo-pet ignorado:', ePet.message); }
+    // 2. Pets (múltiplos)
+    const petBlocks = document.querySelectorAll('.pet-block');
+    const petNomes = [];
+    for (const block of petBlocks) {
+      const petNome  = block.querySelector('.p-nome').value.trim();
+      const petPorte = block.querySelector('.p-porte').value;
+      if (!petNome || !petPorte) { showToast('Preencha nome e porte de todos os pets', 'error'); return; }
+      try {
+        const rp = await fetch(`${N8N_CAD}/novo-pet`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenant_id: TENANT_ID, cliente_id: clienteId,
+            nome: petNome, raca: block.querySelector('.p-raca').value,
+            porte: petPorte, pelagem: block.querySelector('.p-pelagem').value,
+            especie: 'canina', historico: [], sexo: block.querySelector('.p-sexo').value
+          })
+        });
+        if (!rp.ok) console.warn('novo-pet retornou erro:', rp.status);
+      } catch (ePet) { console.warn('novo-pet ignorado:', ePet.message); }
+      petNomes.push(petNome);
+    }
 
-    // 3. Montar saldos
-    const saldos = {};
-    const usados = [];
+    // 3. Saldos
+    const saldos = {}, usados = [];
     let totalBanhos = 0, totalTosasHig = 0;
     document.querySelectorAll('.qty-total').forEach(inp => {
       const qty = parseInt(inp.value) || 0;
       if (!qty) return;
-      const id    = inp.dataset.id;
-      const nome  = inp.dataset.nome;
-      const preco = parseFloat(inp.dataset.preco) || 0;
-      const uEl   = document.querySelector(`.qty-usado[data-id="${id}"]`);
+      const id = inp.dataset.id, nome = inp.dataset.nome, preco = parseFloat(inp.dataset.preco) || 0;
+      const uEl = document.querySelector(`.qty-usado[data-id="${id}"]`);
       const usado = Math.min(parseInt(uEl?.value) || 0, qty);
-      saldos[id]  = { nome, quantidade: qty, restante: qty - usado, preco_unit: preco };
+      saldos[id] = { nome, quantidade: qty, restante: qty - usado, preco_unit: preco };
       if (nome.toLowerCase().includes('banho') && !nome.toLowerCase().includes('tosa')) totalBanhos += qty;
       if (nome.toLowerCase().includes('higiênica')) totalTosasHig += qty;
       if (usado > 0) {
@@ -539,7 +578,7 @@ async function salvar() {
     });
     const pacoteId = Array.isArray(pac) ? pac[0]?.id : pac?.id;
 
-    // 5. Histórico de uso já consumido
+    // 5. Histórico de uso
     if (pacoteId && usados.length) {
       for (const u of usados) {
         for (let i = 0; i < u.usado; i++) {
@@ -556,10 +595,10 @@ async function salvar() {
 
     // Sucesso
     document.getElementById('formState').style.display = 'none';
-    const s = document.getElementById('successState');
-    s.style.display = 'block';
+    document.getElementById('successState').style.display = 'block';
+    const clienteNome = document.getElementById('cBusca').value || document.getElementById('cNome').value;
     document.getElementById('successMsg').textContent =
-      `${petNome} (${document.getElementById('cBusca').value || document.getElementById('cNome').value}) · R$ ${valorPacote.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+      `${petNomes.join(', ')} (${clienteNome}) · R$ ${valorPacote.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
   } catch(e) {
     console.error('Erro ao salvar pacote:', e);
@@ -581,16 +620,12 @@ function resetForm() {
   document.getElementById('btnNovo').textContent = '+ Novo cliente';
   document.getElementById('cNome').value = '';
   document.getElementById('cTel').value = '';
-  document.getElementById('pNome').value = '';
-  document.getElementById('pRaca').value = '';
-  document.getElementById('pPorte').value = '';
-  document.getElementById('pPelagem').value = 'curto';
-  document.getElementById('pSexo').value = 'M';
   document.getElementById('valor').value = '';
   valorEditado = false;
   porteAtual = 'p';
   document.querySelectorAll('[data-porte]').forEach(b => b.classList.toggle('active', b.dataset.porte === 'p'));
   document.getElementById('dataAdesao').value = new Date().toISOString().split('T')[0];
+  initPets();
   renderServicos();
 }
 
