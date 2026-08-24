@@ -2916,30 +2916,69 @@ async function marcarAtendendo(id) {
   _imprimirFichaAtendimento(ag);
 }
 
-async function _imprimirFichaAtendimento(ag) {
+function _imprimirFichaAtendimento(ag) {
   try {
     const dataHora = ag.data_hora ? new Date(ag.data_hora) : null;
     const dataStr = dataHora ? dataHora.toISOString().split('T')[0] : (ag.data || '');
-    const adicionaisTexto = (ag.adicionais || []).map(a => a.nome || a);
-    console.log('[PRINT] enviando para servidor:', ag.pet_nome, ag.servico);
-    const _printHost = location.protocol === 'https:' ? 'localhost' : location.hostname;
-    await fetch(`http://${_printHost}:5000/print`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        pet_nome:   ag.pet_nome || '',
-        pet_raca:   ag.pet_raca || '',
-        tutor_nome: ag.tutor_nome || ag.nome_tutor || '',
-        taxi_dog:   ag.taxi_dog || false,
-        servico:    ag.servico || '',
-        adicionais: adicionaisTexto,
-        hora:       ag.hora || '',
-        data:       dataStr
-      })
-    });
+    let dataFmt = dataStr;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) {
+      const [y, m, d] = dataStr.split('-');
+      dataFmt = `${d}/${m}/${y}`;
+    }
+
+    let servico = ag.servico || '';
+    let adicionais = (ag.adicionais || []).map(a => a.nome || a);
+    if (servico.toLowerCase().includes('tosa'))
+      adicionais = adicionais.filter(a => !a.toLowerCase().includes('banho'));
+
+    const linhasAdicionais = adicionais.map(a => `<div class="add">+ ${a}</div>`).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+@page{size:80mm auto;margin:4mm 3mm}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Courier New',monospace;font-size:10pt;width:74mm;color:#000}
+.center{text-align:center}
+.bold{font-weight:700}
+.hr{border:none;border-top:1px dashed #000;margin:3px 0}
+.lbl{color:#555;font-size:9pt}
+.field{margin:2px 0}
+.chk{display:inline-block;border:1px solid #000;width:10px;height:10px;margin-right:3px;vertical-align:middle}
+.add{padding-left:8px}
+.obs{border-bottom:1px solid #000;margin:7px 0 3px;height:1px}
+h1{font-size:13pt;margin-bottom:1px}
+</style></head><body>
+<div class="center bold"><h1>MagaPet</h1></div>
+<div class="center">Ficha de Atendimento</div>
+<div class="center">${dataFmt}&nbsp;&nbsp;${ag.hora || ''}</div>
+<hr class="hr">
+<div class="field"><span class="lbl">Pet:</span> <strong>${ag.pet_nome || '-'}</strong></div>
+<div class="field"><span class="lbl">Raça:</span> ${ag.pet_raca || '-'}</div>
+<div class="field"><span class="lbl">Tutor:</span> ${ag.tutor_nome || ag.nome_tutor || '-'}</div>
+<hr class="hr">
+<div class="field"><span class="chk"></span>Taxi Dog</div>
+<hr class="hr">
+<div class="field"><span class="lbl">Serviço:</span> <strong>${servico}</strong></div>
+${linhasAdicionais}
+<hr class="hr">
+<div class="field"><span class="chk"></span>Desembaraço</div>
+<div class="field" style="padding-left:8px">Nível: <span class="chk"></span>1 <span class="chk"></span>2 <span class="chk"></span>3 <span class="chk"></span>4 <span class="chk"></span>5</div>
+<hr class="hr">
+<div class="field bold">Obs:</div>
+<div class="obs"></div><div class="obs"></div>
+</body></html>`;
+
+    const win = window.open('', '_blank', 'width=320,height=520');
+    if (!win) { console.warn('[PRINT] popup bloqueado'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => {
+      win.print();
+      win.addEventListener('afterprint', () => win.close());
+    }, 250);
   } catch(e) {
     console.error('[PRINT] erro:', e.message);
-    // Servidor offline — não bloqueia o fluxo
   }
 }
 
