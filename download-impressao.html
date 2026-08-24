@@ -81,7 +81,20 @@ import time
 import ssl
 import urllib.request
 import subprocess
+import socket
 import os
+
+def _get_ip_local():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+IP_LOCAL = _get_ip_local()
 
 app = Flask(__name__)
 CORS(app)
@@ -138,7 +151,7 @@ def abrir_chrome():
     ]
     for p in caminhos:
         if os.path.exists(p):
-            subprocess.Popen([p, "http://127.0.0.1:5000/"])
+            subprocess.Popen([p, f"http://{IP_LOCAL}:5000/"])
             return
 
 @app.route("/")
@@ -264,12 +277,6 @@ def imprimir():
         return jsonify({"ok": False, "erro": str(e)}), 500
 
 if __name__ == "__main__":
-    import socket
-    try:
-        ip_local = socket.gethostbyname(socket.gethostname())
-    except Exception:
-        ip_local = "127.0.0.1"
-
     print("=" * 45)
     print("  Servidor de impressao MagaPet")
     print(f"  Impressora: {PRINTER_NAME}")
@@ -280,7 +287,7 @@ if __name__ == "__main__":
     threading.Thread(target=abrir_chrome, daemon=True).start()
 
     print(f"  Computador: http://127.0.0.1:5000")
-    print(f"  Celular:    http://{ip_local}:5000")
+    print(f"  Celular:    http://{IP_LOCAL}:5000")
     print("  Chrome vai abrir automaticamente.")
     print("  Mantenha esta janela aberta.")
     print("=" * 45)
@@ -296,6 +303,8 @@ pywin32
 const conteudoBat = `@echo off
 title MagaPet - Servidor de Impressao
 cd /d "%~dp0"
+:: Libera porta 5000 no firewall para acesso pelo celular
+netsh advfirewall firewall add rule name="MagaPet CRM" dir=in action=allow protocol=TCP localport=5000 >nul 2>&1
 :: Fecha servidor anterior se estiver rodando
 taskkill /F /IM python.exe >nul 2>&1
 taskkill /F /IM python3.exe >nul 2>&1
