@@ -255,6 +255,26 @@
        com scroll) e o overflow:hidden do .apt-card corta os botões de baixo */
     .kanban-col-body .apt-card { flex-shrink: 0; }
     .kanban-col-empty { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0; }
+
+    /* CARD COMPACTO DO KANBAN — clique abre o card completo em modal */
+    .kanban-card-mini {
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 3px;
+      transition: all 0.15s;
+    }
+    .kanban-card-mini:hover { border-color: rgba(126,184,247,0.5); transform: translateY(-1px); }
+    .kanban-card-mini.status-aguardando { border-left: 3px solid #5b9bd5; }
+    .kanban-card-mini.status-atendendo { border-left: 3px solid #e8903a; }
+    .kanban-card-mini.status-pronto { border-left: 3px solid #4caf7d; }
+    .kanban-card-mini.status-entregue { border-left: 3px solid #aab4cc; opacity: 0.8; }
+    .kanban-card-mini.status-cancelado { border-left: 3px solid #d95f52; opacity: 0.7; }
+    .kmini-top { display: flex; justify-content: space-between; align-items: center; }
+    .kmini-hora { font-weight: 700; font-size: 13px; color: var(--text); }
+    .kmini-tags { font-size: 12px; }
+    .kmini-pet { font-size: 13.5px; font-weight: 600; color: var(--text); }
+    .kmini-servico { font-size: 12px; color: var(--muted); }
+    .kmini-tutor { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+    .kanban-card-mini .btn { padding: 6px 10px; font-size: 12px; width: 100%; justify-content: center; margin-top: 2px; }
     @media (max-width: 900px) {
       .kanban-col { flex-basis: 280px; }
     }
@@ -2219,11 +2239,53 @@ function renderAgendaKanban(filtered, snorm) {
       </div>
       <div class="kanban-col-body">
         ${grupos[s.key].length
-          ? grupos[s.key].map(ag => renderCard(ag)).join('')
+          ? grupos[s.key].map(ag => renderCardKanbanCompact(ag)).join('')
           : '<div class="kanban-col-empty">Vazio</div>'}
       </div>
     </div>
   `).join('');
+}
+
+// Card compacto do Kanban — só o essencial pra escanear a coluna de relance.
+// Clicar abre o card completo (mesmo renderCard() da lista, com todas as ações) num modal.
+function renderCardKanbanCompact(ag) {
+  const statusNorm = { confirmado: 'aguardando', aguardando: 'aguardando', atendendo: 'atendendo', pronto: 'pronto', entregue: 'entregue', cancelado: 'cancelado' };
+  const statusReal = statusNorm[ag.status] || 'aguardando';
+
+  // Só a ação principal daquele status — as outras (WhatsApp, Editar, Cancelar,
+  // Adicional, Bloquear) ficam a um clique de distância, dentro do card completo.
+  const acaoPrincipal = {
+    aguardando: `<button class="btn" style="background:#fff3e8;color:#c47020;border:1px solid #e8903a;" onclick="event.stopPropagation();marcarAtendendo('${ag.id}')">✂️ Atender</button>`,
+    atendendo:  `<button class="btn btn-pronto" onclick="event.stopPropagation();marcarPronto('${ag.id}')">✓ Pronto</button>`,
+    pronto:     `<button class="btn btn-entregue" onclick="event.stopPropagation();checarEntregue('${ag.id}')">🏠 Entregue</button>`,
+  }[statusReal] || '';
+
+  const tagsMini = [
+    ag.taxi_dog ? '🚗' : '',
+    ag.cliente_novo ? '🆕' : '',
+    ag.saldo_pacote ? '🎟️' : '',
+    ag.pendente_humano ? '⚠️' : '',
+    _isTutorBloqueado(ag.tutor_telefone) ? '🚫' : '',
+  ].filter(Boolean).join(' ');
+
+  return `
+    <div class="kanban-card-mini status-${statusReal}" onclick="abrirDetalhesAgendamento('${ag.id}')">
+      <div class="kmini-top">
+        <span class="kmini-hora">${ag.hora}</span>
+        ${tagsMini ? `<span class="kmini-tags">${tagsMini}</span>` : ''}
+      </div>
+      <div class="kmini-pet">🐶 ${ag.pet_nome}</div>
+      <div class="kmini-servico">${ag.servico}</div>
+      <div class="kmini-tutor">👤 ${ag.tutor_nome}</div>
+      ${acaoPrincipal}
+    </div>
+  `;
+}
+
+function abrirDetalhesAgendamento(id) {
+  const ag = agendamentos.find(a => a.id === id);
+  if (!ag) return;
+  abrirModal('Detalhes do agendamento', renderCard(ag));
 }
 
 function _eTosaHigienicaComum(nome) {
