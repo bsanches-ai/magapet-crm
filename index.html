@@ -208,6 +208,52 @@
       gap: 16px;
     }
 
+    /* VIEW TOGGLE (Lista / Kanban) */
+    .view-toggle { display: flex; gap: 6px; margin-bottom: 14px; }
+    .view-toggle-btn {
+      padding: 7px 16px; border-radius: 20px; font-size: 12px; font-weight: 600;
+      cursor: pointer; border: 1px solid var(--border); background: #f5f7fc; color: var(--muted);
+      transition: all 0.2s;
+    }
+    .view-toggle-btn:hover { border-color: var(--blue); color: var(--blue); }
+    .view-toggle-btn.active { background: var(--gold); border-color: var(--blue); color: var(--bg); }
+
+    /* KANBAN BOARD */
+    .kanban-board {
+      display: flex;
+      gap: 14px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+      align-items: flex-start;
+    }
+    .kanban-col {
+      flex: 0 0 320px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      max-height: calc(100vh - 300px);
+      display: flex;
+      flex-direction: column;
+    }
+    .kanban-col-header {
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; background: var(--bg2); border-radius: 14px 14px 0 0; z-index: 1;
+    }
+    .kanban-col-header .filter-count { background: rgba(0,0,0,0.08); color: var(--muted); }
+    .kanban-col-body {
+      padding: 12px; display: flex; flex-direction: column; gap: 12px;
+      overflow-y: auto;
+    }
+    .kanban-col-empty { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0; }
+    @media (max-width: 900px) {
+      .kanban-col { flex-basis: 280px; }
+    }
+
     /* APPOINTMENT CARD */
     .apt-card {
       background: var(--card);
@@ -856,8 +902,14 @@
         <div class="filter-chip" data-status="cancelado" onclick="filterStatus('cancelado', this)">🔴 Cancelado <span class="filter-count" id="fc-cancelado">0</span></div>
       </div>
 
-      <div style="max-width:400px;margin-bottom:16px;">
-        <input class="form-input" type="text" placeholder="🔍 Buscar pet, tutor ou serviço..." id="searchAgenda" oninput="filtrarAgenda(this.value)" style="background:#ffffff;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+        <div style="max-width:400px;margin-bottom:0;flex:1;min-width:220px;">
+          <input class="form-input" type="text" placeholder="🔍 Buscar pet, tutor ou serviço..." id="searchAgenda" oninput="filtrarAgenda(this.value)" style="background:#ffffff;margin:0;">
+        </div>
+        <div class="view-toggle" style="margin-bottom:0;">
+          <div class="view-toggle-btn" data-view="lista" onclick="setAgendaView('lista')">📋 Lista</div>
+          <div class="view-toggle-btn" data-view="kanban" onclick="setAgendaView('kanban')">📊 Kanban</div>
+        </div>
       </div>
       <div class="cards-grid" id="cardsGrid">
         <div class="empty-state">
@@ -865,6 +917,7 @@
           <div class="empty-text">Carregando agenda...</div>
         </div>
       </div>
+      <div class="kanban-board" id="kanbanBoard" style="display:none;"></div>
     </div>
 
     <!-- ENCAIXE PAGE -->
@@ -2077,8 +2130,30 @@ async function enriquecerComPacotes() {
   } catch(e) {}
 }
 
+// Grupos do Kanban, na ordem em que as colunas aparecem
+const KANBAN_STATUSES = [
+  { key: 'aguardando', label: '🔵 Aguardando' },
+  { key: 'atendendo',  label: '🟠 Atendendo' },
+  { key: 'pronto',     label: '🟢 Pronto' },
+  { key: 'entregue',   label: '⚫ Entregue' },
+  { key: 'cancelado',  label: '🔴 Cancelado' },
+];
+
+// Visualização da agenda: 'lista' (padrão, como sempre foi) ou 'kanban'
+let agendaViewMode = (() => {
+  try { return localStorage.getItem('magapet_agenda_view') || 'lista'; } catch(e) { return 'lista'; }
+})();
+
+function setAgendaView(mode) {
+  agendaViewMode = mode;
+  try { localStorage.setItem('magapet_agenda_view', mode); } catch(e) {}
+  document.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.view === mode));
+  document.getElementById('cardsGrid').style.display = mode === 'kanban' ? 'none' : '';
+  document.getElementById('kanbanBoard').style.display = mode === 'kanban' ? '' : 'none';
+  renderAgenda();
+}
+
 function renderAgenda() {
-  const grid = document.getElementById('cardsGrid');
   const snorm = { confirmado: 'aguardando', aguardando: 'aguardando', atendendo: 'atendendo', pronto: 'pronto', entregue: 'entregue', cancelado: 'cancelado' };
   const filtered = agendamentos
     .filter(a => a.pet_nome && a.pet_nome !== 'undefined' && a.tutor_nome && a.tutor_nome !== 'undefined')
@@ -2096,12 +2171,54 @@ function renderAgenda() {
     })
     .sort((a, b) => a.hora.localeCompare(b.hora));
 
+  if (agendaViewMode === 'kanban') {
+    renderAgendaKanban(filtered, snorm);
+  } else {
+    renderAgendaLista(filtered);
+  }
+}
+
+function renderAgendaLista(filtered) {
+  const grid = document.getElementById('cardsGrid');
   if (filtered.length === 0) {
     grid.innerHTML = '<div class="empty-state"><div class="empty-icon">🐾</div><div class="empty-text">Nenhum agendamento encontrado</div></div>';
     return;
   }
-
   grid.innerHTML = filtered.map(ag => renderCard(ag)).join('');
+}
+
+function renderAgendaKanban(filtered, snorm) {
+  const board = document.getElementById('kanbanBoard');
+  if (filtered.length === 0) {
+    board.innerHTML = '<div class="empty-state"><div class="empty-icon">🐾</div><div class="empty-text">Nenhum agendamento encontrado</div></div>';
+    return;
+  }
+  const grupos = {};
+  KANBAN_STATUSES.forEach(s => grupos[s.key] = []);
+  filtered.forEach(ag => {
+    const s = snorm[ag.status] || 'aguardando';
+    (grupos[s] || (grupos[s] = [])).push(ag);
+  });
+
+  // Mesma regra de visibilidade dos chips de filtro: com "todos" ativo, esconde cancelado;
+  // com filtros específicos ativos, só mostra a coluna se o filtro correspondente estiver ligado.
+  const colunas = KANBAN_STATUSES.filter(s =>
+    activeFilters.has('todos') ? s.key !== 'cancelado' : activeFilters.has(s.key)
+  );
+
+  board.innerHTML = colunas.map(s => `
+    <div class="kanban-col">
+      <div class="kanban-col-header">
+        <span>${s.label}</span>
+        <span class="filter-count">${grupos[s.key].length}</span>
+      </div>
+      <div class="kanban-col-body">
+        ${grupos[s.key].length
+          ? grupos[s.key].map(ag => renderCard(ag)).join('')
+          : '<div class="kanban-col-empty">Vazio</div>'}
+      </div>
+    </div>
+  `).join('');
 }
 
 function _eTosaHigienicaComum(nome) {
@@ -5405,6 +5522,10 @@ todosAgendamentos = [];
     selAno.value = anoAtual;
   }
 })();
+
+document.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.view === agendaViewMode));
+document.getElementById('cardsGrid').style.display = agendaViewMode === 'kanban' ? 'none' : '';
+document.getElementById('kanbanBoard').style.display = agendaViewMode === 'kanban' ? '' : 'none';
 
 loadConfig().then(() => loadAgenda());
 loadClientes(); // carrega silenciosamente no init para o fallback do encaixe funcionar
