@@ -234,6 +234,7 @@
       max-height: calc(100vh - 300px);
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
     .kanban-col-header {
       padding: 12px 16px;
@@ -248,7 +249,11 @@
     .kanban-col-body {
       padding: 12px; display: flex; flex-direction: column; gap: 12px;
       overflow-y: auto;
+      flex: 1 1 auto; min-height: 0;
     }
+    /* Sem isso, os cards encolhem verticalmente dentro da coluna (flex column
+       com scroll) e o overflow:hidden do .apt-card corta os botões de baixo */
+    .kanban-col-body .apt-card { flex-shrink: 0; }
     .kanban-col-empty { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0; }
     @media (max-width: 900px) {
       .kanban-col { flex-basis: 280px; }
