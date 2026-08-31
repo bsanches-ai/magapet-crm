@@ -275,6 +275,8 @@
     .kmini-servico { font-size: 12px; color: var(--muted); }
     .kmini-tutor { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
     .kanban-card-mini .btn { padding: 6px 10px; font-size: 12px; width: 100%; justify-content: center; margin-top: 2px; }
+    .kanban-card-mini.dragging { opacity: 0.35; }
+    .kanban-col-body.drag-over { background: rgba(126,184,247,0.12); outline: 2px dashed var(--blue); outline-offset: -4px; border-radius: 8px; }
     @media (max-width: 900px) {
       .kanban-col { flex-basis: 280px; }
     }
@@ -2237,7 +2239,7 @@ function renderAgendaKanban(filtered, snorm) {
         <span>${s.label}</span>
         <span class="filter-count">${grupos[s.key].length}</span>
       </div>
-      <div class="kanban-col-body">
+      <div class="kanban-col-body" ondragover="onDragOverColumn(event)" ondragleave="onDragLeaveColumn(event)" ondrop="onDropColumn(event, '${s.key}')">
         ${grupos[s.key].length
           ? grupos[s.key].map(ag => renderCardKanbanCompact(ag)).join('')
           : '<div class="kanban-col-empty">Vazio</div>'}
@@ -2269,7 +2271,9 @@ function renderCardKanbanCompact(ag) {
   ].filter(Boolean).join(' ');
 
   return `
-    <div class="kanban-card-mini status-${statusReal}" onclick="abrirDetalhesAgendamento('${ag.id}')">
+    <div class="kanban-card-mini status-${statusReal}" draggable="true"
+      ondragstart="onDragStartCard(event, '${ag.id}')" ondragend="onDragEndCard(event)"
+      onclick="abrirDetalhesAgendamento('${ag.id}')">
       <div class="kmini-top">
         <span class="kmini-hora">${ag.hora}</span>
         ${tagsMini ? `<span class="kmini-tags">${tagsMini}</span>` : ''}
@@ -2286,6 +2290,59 @@ function abrirDetalhesAgendamento(id) {
   const ag = agendamentos.find(a => a.id === id);
   if (!ag) return;
   abrirModal('Detalhes do agendamento', renderCard(ag));
+}
+
+// =====================
+// DRAG & DROP — Kanban
+// =====================
+function onDragStartCard(ev, id) {
+  ev.dataTransfer.setData('text/plain', id);
+  ev.dataTransfer.effectAllowed = 'move';
+  ev.currentTarget.classList.add('dragging');
+}
+
+function onDragEndCard(ev) {
+  ev.currentTarget.classList.remove('dragging');
+}
+
+function onDragOverColumn(ev) {
+  ev.preventDefault(); // necessário pra permitir o drop
+  ev.dataTransfer.dropEffect = 'move';
+  ev.currentTarget.classList.add('drag-over');
+}
+
+function onDragLeaveColumn(ev) {
+  ev.currentTarget.classList.remove('drag-over');
+}
+
+function onDropColumn(ev, statusDestino) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('drag-over');
+  const id = ev.dataTransfer.getData('text/plain');
+  if (!id) return;
+  const ag = agendamentos.find(a => a.id === id);
+  if (!ag) return;
+
+  const statusNorm = { confirmado: 'aguardando', aguardando: 'aguardando', atendendo: 'atendendo', pronto: 'pronto', entregue: 'entregue', cancelado: 'cancelado' };
+  const statusOrigem = statusNorm[ag.status] || 'aguardando';
+  if (statusOrigem === statusDestino) return; // soltou na própria coluna, nada a fazer
+
+  // Arrastar dispara exatamente a mesma função do botão correspondente —
+  // mesma impressão, débito de pacote e confirmações que já existiam.
+  // Só as transições que já eram possíveis por botão são permitidas aqui;
+  // pular etapa ou voltar status por arraste fica de fora de propósito.
+  const TRANSICOES_VALIDAS = {
+    'aguardando->atendendo': () => marcarAtendendo(id),
+    'aguardando->cancelado': () => confirmarCancelamento(id, ag.pet_nome, ag.tutor_telefone, ag.tutor_nome),
+    'atendendo->pronto': () => marcarPronto(id),
+    'pronto->entregue': () => checarEntregue(id),
+  };
+  const acao = TRANSICOES_VALIDAS[`${statusOrigem}->${statusDestino}`];
+  if (acao) {
+    acao();
+  } else {
+    showToast(`Não é possível mover de "${statusOrigem}" direto pra "${statusDestino}"`, 'error');
+  }
 }
 
 function _eTosaHigienicaComum(nome) {
