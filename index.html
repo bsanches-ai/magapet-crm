@@ -324,6 +324,16 @@
     .badge-pronto { background: rgba(76,175,125,0.15); color: var(--green); }
     .badge-entregue { background: rgba(122,112,101,0.15); color: var(--muted); }
 
+    /* Reimprimir etiqueta — só aparece em "atendendo", pra cobrir o caso de
+       ter mudado o status pelo celular (onde a impressão real não acontece) */
+    .btn-print-mini {
+      width: 26px; height: 26px; border-radius: 8px; border: 1px solid #e8903a;
+      background: #fff3e8; color: #c47020; cursor: pointer; font-size: 13px;
+      display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .btn-print-mini:hover { transform: scale(1.08); }
+
     .card-pet {
       padding: 0 16px 10px;
       display: flex;
@@ -2276,7 +2286,10 @@ function renderCardKanbanCompact(ag) {
       onclick="abrirDetalhesAgendamento('${ag.id}')">
       <div class="kmini-top">
         <span class="kmini-hora">${ag.hora}</span>
-        ${tagsMini ? `<span class="kmini-tags">${tagsMini}</span>` : ''}
+        <span style="display:flex;align-items:center;gap:6px;">
+          ${tagsMini ? `<span class="kmini-tags">${tagsMini}</span>` : ''}
+          ${statusReal === 'atendendo' ? `<button class="btn-print-mini" onclick="event.stopPropagation();reimprimirFicha('${ag.id}')" title="Reimprimir etiqueta">🖨️</button>` : ''}
+        </span>
       </div>
       <div class="kmini-pet">🐶 ${ag.pet_nome}</div>
       <div class="kmini-servico">${ag.servico}</div>
@@ -2407,7 +2420,10 @@ const entregueBtn = statusReal === 'pronto'
     <div class="apt-card status-${statusReal}" id="card-${ag.id}">
       <div class="card-header">
         <div class="card-time">${ag.hora}${_searchAgendaQuery ? ` <span style="font-size:12px;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:500;">${ag.data_hora ? new Date(new Date(ag.data_hora).getTime() - 3*60*60*1000).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'}) : ''}</span>` : ''}</div>
-        <div class="card-status-badge ${statusBadges[statusReal]}">${statusLabels[statusReal]}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="card-status-badge ${statusBadges[statusReal]}">${statusLabels[statusReal]}</div>
+          ${statusReal === 'atendendo' ? `<button class="btn-print-mini" onclick="event.stopPropagation();reimprimirFicha('${ag.id}')" title="Reimprimir etiqueta">🖨️</button>` : ''}
+        </div>
       </div>
       <div class="card-pet">
         <div class="pet-avatar">🐶</div>
@@ -3201,6 +3217,16 @@ ${linhasAdicionais}
 <div class="field bold">Obs:</div>
 <div class="obs"></div><div class="obs"></div>
 </body></html>`;
+}
+
+// Reimprime a etiqueta de um agendamento já em "atendendo" — cobre o caso
+// de o status ter mudado pelo celular, onde a impressão real não sai
+// (sem Flask/impressora conectada por lá).
+function reimprimirFicha(id) {
+  const ag = agendamentos.find(a => a.id === id);
+  if (!ag) return;
+  _imprimirFichaAtendimento(ag);
+  showToast('Reimprimindo etiqueta... 🖨️', 'success');
 }
 
 function _imprimirFichaAtendimento(ag) {
