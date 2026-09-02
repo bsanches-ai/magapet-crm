@@ -2455,7 +2455,7 @@ const entregueBtn = statusReal === 'pronto'
           ${(ag.saldo_pacote || ag._temPacoteJSONB) ? `<div style="font-size:11px;color:var(--green);margin-top:2px;">🎟️ Coberto pelo pacote</div>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
-          ${ag.desconto ? `<span style="font-size:11px;color:var(--green);text-decoration:line-through;opacity:0.6">${formatMoney(valorTotal + ag.desconto)}</span>` : ''}
+          ${ag.desconto ? `<span style="font-size:11px;color:var(--green);text-decoration:line-through;opacity:0.6">${formatMoney(valorTotal)}</span>` : ''}
           ${(ag.pet_porte === 'GG' || ag.is_premium)
             ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
                 <input type="number" placeholder="R$ valor" value="${ag.valor || ''}" min="0"
@@ -5710,7 +5710,7 @@ function convCardHTML(c, tipo) {
     : (tempo ? `✅ resolvido ${tempo}` : '✅ Resolvido');
   const btnHtml = isPend
     ? `<a class="btn btn-whatsapp" href="https://web.whatsapp.com/send?phone=${c.telefone}" target="_blank" style="font-size:12px;padding:6px 12px;">💬 WhatsApp</a>
-       <button class="btn-resolver-conv" onclick="resolverConversa('${c.id}', this)">Resolvido ✓</button>`
+       <button class="btn-resolver-conv" onclick="resolverConversa('${c.id}', '${c.telefone || ''}', this)">Resolvido ✓</button>`
     : `<button class="btn-resolver-conv" onclick="reabrirConversa('${c.id}', this)" style="color:var(--orange);border-color:var(--orange);">Reabrir</button>`;
   return `<div class="conv-card ${isPend ? '' : 'resolvido'}" data-id="${c.id}">
     <div class="conv-avatar">${inicial}</div>
@@ -5759,13 +5759,23 @@ async function carregarConversas() {
   } catch(e) { console.warn('carregarConversas:', e.message); }
 }
 
-async function resolverConversa(clienteId, btn) {
+async function resolverConversa(clienteId, telefone, btn) {
   btn.disabled = true; btn.textContent = '...';
   const r = await fetch(`${SB_URL}/rest/v1/clientes?id=eq.${clienteId}`, {
     method: 'PATCH',
     headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify({ pendente_humano: false })
   });
+  // Limpa também a trava por etiqueta do WhatsApp (taxi dog, etc.) — mecanismo
+  // separado do pendente_humano, senão o bot continua bloqueado mesmo depois
+  // de "resolvido" aqui. Não bloqueia o fluxo principal se falhar.
+  if (telefone) {
+    fetch('https://n8n-eogk.srv1598428.hstgr.cloud/webhook/magapet-resolver-humano', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: TENANT_ID, telefone })
+    }).catch(() => {});
+  }
   if (r.ok) {
     const card = btn.closest('.conv-card');
     card.classList.add('saindo');
