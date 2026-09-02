@@ -4019,7 +4019,8 @@ function renderDashboard(d) {
 
   // Tabela
   // FIX-6: subtrai desconto no valor exibido na tabela
-  document.getElementById('tabelaBody').innerHTML = d.historico.map(h => {
+  const historicoOrdenado = [...d.historico].sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  document.getElementById('tabelaBody').innerHTML = historicoOrdenado.map(h => {
     const valorLiquido = Math.max(0, (parseFloat(h.valor) || 0) - (parseFloat(h.desconto) || 0));
     return `<tr style="border-bottom: 1px solid var(--border);">
       <td style="padding: 8px; color: var(--muted);">${h.data}</td>
