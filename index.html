@@ -3190,13 +3190,17 @@ function _buildFichaHtml(ag) {
 <style>
 @page{size:80mm auto;margin:4mm 3mm}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Courier New',monospace;font-size:10pt;width:74mm;color:#000}
+body{font-family:'Courier New',monospace;font-size:10pt;width:74mm;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .center{text-align:center}.bold{font-weight:700}
 .hr{border:none;border-top:1px dashed #000;margin:3px 0}
-.lbl{color:#555;font-size:9pt}.field{margin:2px 0}
+.lbl{color:#000;font-size:9pt;font-weight:600}.field{margin:2px 0}
 .chk{display:inline-block;border:1px solid #000;width:10px;height:10px;margin-right:3px;vertical-align:middle}
 .add{padding-left:8px}.obs{border-bottom:1px solid #000;margin:7px 0 3px;height:1px}
 h1{font-size:13pt;margin-bottom:1px}
+/* Impressora térmica não reproduz cinza direito (sai quase invisível) —
+   força tudo pra preto sólido na hora de imprimir, sem depender de
+   nenhuma cor "clara" definida acima. */
+@media print{*{color:#000!important;opacity:1!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
 </style></head><body>
 <div class="center bold"><h1>MagaPet</h1></div>
 <div class="center">Ficha de Atendimento</div>
