@@ -1232,6 +1232,7 @@
     </div>
     <div style="font-size:12px;color:var(--text-2, #888);margin-bottom:14px;line-height:1.5;">
       Funciona no Chrome/Edge (computador e Android). O Safari/iPhone não suporta impressão Bluetooth direta pelo navegador — nesses casos continua usando a impressão de rede ou o diálogo de impressão do navegador.<br>
+      No Android, a <b>Localização (GPS) do celular precisa estar ligada</b> pra lista de aparelhos Bluetooth aparecer — é exigência do próprio Android, sem isso a lista vem vazia.<br>
       Depois de recarregar a página é preciso parear de novo (é assim que o navegador funciona, não dá pra evitar).
     </div>
     <div class="modal-actions" style="flex-wrap:wrap;">
@@ -3309,8 +3310,15 @@ async function _btConectar({ pedirNovoPareamento = false } = {}) {
   }
   _btDiagnostico = '';
   if (!_btDevice || pedirNovoPareamento) {
+    // acceptAllDevices em vez de filtrar por serviço: muita impressora
+    // térmica barata (Goldensky/JP58H e similares) não anuncia o UUID do
+    // serviço no pacote de advertising BLE, só depois de conectar — um
+    // filtro por "services" faz ela nem aparecer na lista, principalmente
+    // no Android. Mostrando todos os aparelhos, dá pra escolher a impressora
+    // pelo nome manualmente; optionalServices continua liberando o acesso
+    // aos serviços de impressão depois que ela for escolhida.
     _btDevice = await navigator.bluetooth.requestDevice({
-      filters: BT_PRINTER_SERVICE_UUIDS.map(uuid => ({ services: [uuid] })),
+      acceptAllDevices: true,
       optionalServices: [...BT_PRINTER_SERVICE_UUIDS, ...BT_WRITE_CHAR_UUIDS],
     });
     _btDevice.addEventListener('gattserverdisconnected', () => { _btCharacteristic = null; });
