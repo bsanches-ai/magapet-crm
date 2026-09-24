@@ -1246,6 +1246,7 @@
         <label class="form-label" style="margin-bottom:4px;">Valor (R$)</label>
         <input type="number" class="modal-input" id="adicionalValorLivre" placeholder="Ex: 150" min="0" style="margin:0;">
       </div>
+      <div id="adicionalValorLivreMultiWrap" style="display:none;"></div>
     </div>
     <div class="modal-actions">
       <button class="btn-modal-cancel" onclick="closeModal('modalAdicional')">Cancelar</button>
@@ -2754,11 +2755,36 @@ function abrirAdicional(id) {
   document.getElementById('adicionalValorLivreWrap').style.display = 'none';
   document.getElementById('desembaracoNivel').value = '';
   document.getElementById('adicionalValorLivre').value = '';
+  document.getElementById('adicionalValorLivreMultiWrap').style.display = 'none';
+  document.getElementById('adicionalValorLivreMultiWrap').innerHTML = '';
 
   document.getElementById('modalAdicional').classList.add('open');
 }
 
 let selectedAdicionais = [];
+
+// Um campo de valor por adicional "livre" selecionado (ex: vários adicionais
+// de pet GG ao mesmo tempo), cada um com o nome do adicional no rótulo —
+// em vez de 1 campo único compartilhado, que fazia o valor digitado valer
+// (duplicado) pra todos os adicionais livres selecionados.
+function _renderValorLivreInputs() {
+  const wrap = document.getElementById('adicionalValorLivreMultiWrap');
+  const valoresAtuais = {};
+  wrap.querySelectorAll('input[data-nome]').forEach(inp => { valoresAtuais[inp.dataset.nome] = inp.value; });
+
+  const livres = selectedAdicionais.filter(a => a.isLivre && !a.isDesembaraco);
+  if (!livres.length) {
+    wrap.style.display = 'none';
+    wrap.innerHTML = '';
+    return;
+  }
+  wrap.style.display = 'block';
+  wrap.innerHTML = livres.map(a => `
+    <div style="margin-bottom:8px;">
+      <label class="form-label" style="margin-bottom:4px;">Valor (R$) — ${a.nome}</label>
+      <input type="number" class="modal-input" data-nome="${a.nome}" placeholder="Ex: 150" min="0" style="margin:0;" value="${valoresAtuais[a.nome] || ''}">
+    </div>`).join('');
+}
 
 function toggleAdicional(el) {
   const nome = el.dataset.nome;
@@ -2771,7 +2797,6 @@ function toggleAdicional(el) {
     selectedAdicionais.splice(idx, 1);
     el.classList.remove('selected');
     if (isDesembaraco) {
-      document.getElementById('adicionalExtras').style.display = 'none';
       document.getElementById('desembaracoNivelWrap').style.display = 'none';
       document.getElementById('adicionalValorLivreWrap').style.display = 'none';
     }
@@ -2779,14 +2804,12 @@ function toggleAdicional(el) {
     selectedAdicionais.push({ nome, preco, isLivre, isDesembaraco });
     el.classList.add('selected');
     if (isDesembaraco) {
-      document.getElementById('adicionalExtras').style.display = 'block';
       document.getElementById('desembaracoNivelWrap').style.display = 'block';
-      document.getElementById('adicionalValorLivreWrap').style.display = 'none';
-    } else if (isLivre) {
-      document.getElementById('adicionalExtras').style.display = 'block';
-      document.getElementById('adicionalValorLivreWrap').style.display = 'block';
     }
   }
+  _renderValorLivreInputs();
+  const algumExtra = selectedAdicionais.some(a => a.isDesembaraco || (a.isLivre && !a.isDesembaraco));
+  document.getElementById('adicionalExtras').style.display = algumExtra ? 'block' : 'none';
 }
 
 function selectAdicional(el, i, nome, preco, isLivre) {
@@ -2825,7 +2848,8 @@ async function confirmarAdicional() {
       }
       descricao = `Desembaraço Nível ${nivel}`;
     } else if (adicional.isLivre) {
-      const valorLivre = parseFloat(document.getElementById('adicionalValorLivre')?.value);
+      const inputEl = document.querySelector(`#adicionalValorLivreMultiWrap input[data-nome="${CSS.escape(adicional.nome)}"]`);
+      const valorLivre = parseFloat(inputEl?.value);
       if (!valorLivre) { showToast(`Informe o valor do adicional ${adicional.nome}`, 'error'); return; }
       preco = valorLivre;
     }
