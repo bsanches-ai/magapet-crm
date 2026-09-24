@@ -2724,8 +2724,10 @@ function abrirAdicional(id) {
 
   document.getElementById('adicionalList').innerHTML = adicionaisFiltrados.map((a, i) => {
     const jaAdicionado = jaAdicionados.includes(a.nome);
-    const isGGlivre = a.preco_gg_livre && isGG;
     const isDesembaraco = a.nome === 'Desembaraço';
+    // Porte GG não tem preço fixo pra nenhum adicional (porteMapNovo mapeia GG -> null),
+    // então sempre pede valor livre pra GG, exceto Desembaraço que já tem seleção de nível própria.
+    const isGGlivre = isGG && !isDesembaraco;
     const preco = isGGlivre || isDesembaraco ? 0 :
       parseFloat(a[colPreco]) || parseFloat(a.preco_p_novo) || 0;
     return `<div class="adicional-item ${jaAdicionado ? 'disabled' : ''}"
@@ -2791,8 +2793,17 @@ function selectAdicional(el, i, nome, preco, isLivre) {
   toggleAdicional(el);
 }
 
+let _confirmandoAdicional = false;
+
 async function confirmarAdicional() {
+  if (_confirmandoAdicional) return;
   if (!selectedAdicionais.length) { showToast('Selecione ao menos um adicional', 'error'); return; }
+
+  _confirmandoAdicional = true;
+  const btnConfirmar = document.querySelector('#modalAdicional .btn-modal-primary');
+  if (btnConfirmar) btnConfirmar.disabled = true;
+
+  try {
 
   const ag = agendamentos.find(a => a.id === currentCardId);
   const adicionaisProcessados = [];
@@ -2841,6 +2852,11 @@ async function confirmarAdicional() {
   const nomes = adicionaisProcessados.map(a => a.nome).join(', ');
   showToast(`${nomes} adicionado(s)!`, 'success');
   renderAgenda();
+
+  } finally {
+    _confirmandoAdicional = false;
+    if (btnConfirmar) btnConfirmar.disabled = false;
+  }
 }
 
 let agEmEdicao = null;
@@ -3262,7 +3278,11 @@ function _imprimirFichaAtendimento(ag) {
 function _imprimirViaBrowser(ag) {
   try {
     const win = window.open('', '_blank', 'width=320,height=520');
-    if (!win) { console.warn('[PRINT] popup bloqueado'); return; }
+    if (!win) {
+      console.warn('[PRINT] popup bloqueado');
+      showToast('Pop-up bloqueado pelo navegador — libere pop-ups pra esse site e tente imprimir de novo.', 'error');
+      return;
+    }
     win.document.write(_buildFichaHtml(ag));
     win.document.close();
     win.focus();
@@ -3272,6 +3292,7 @@ function _imprimirViaBrowser(ag) {
     }, 250);
   } catch(e) {
     console.error('[PRINT] erro:', e.message);
+    showToast('Não consegui abrir a janela de impressão: ' + e.message, 'error');
   }
 }
 
