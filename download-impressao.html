@@ -60,7 +60,19 @@
 
   <div class="aviso" style="background:rgba(126,184,247,.08);border-color:rgba(126,184,247,.3);color:#7eb8f7;">
     🆕 <b style="color:#e8dfd0;">Impressora térmica Bluetooth (Goldensky JP58H, 50mm)</b><br><br>
-    Essa impressora imprime direto do navegador (celular ou computador), sem precisar do servidor acima — abre o CRM, clica em <b>🖨️ Impressora</b> no menu, depois em <b>Parear impressora</b>. Funciona no Chrome/Edge; o Safari/iPhone não suporta.<br><br>
+    Essa impressora é Bluetooth <b>clássico</b> (porta serial, não BLE) — não dá pra imprimir direto do navegador. O jeito de usar depende do aparelho:<br><br>
+    <b style="color:#e8dfd0;">No computador (Windows):</b><br>
+    1. Baixa e instala o driver pelo link abaixo<br>
+    2. Liga o Bluetooth do Windows → Configurações → Bluetooth e dispositivos → Adicionar dispositivo → escolhe a impressora (senha padrão: <b>0000</b> ou <b>1234</b>)<br>
+    3. Depois de pareada, instala ela como impressora do Windows (o driver guia esse passo)<br>
+    4. Abre <b>Configurações → Impressoras e scanners</b>, copia o nome exato que aparece pra essa impressora<br>
+    5. Cria um arquivo de texto chamado <b>impressora_nome.txt</b> na pasta <b>C:\MagaPet\impressao\</b> (a mesma dos 3 arquivos acima), cola o nome copiado e salva<br>
+    6. Reinicia o <b>iniciar.bat</b> — pronto, o botão "Atender" do CRM já imprime nela<br><br>
+    <b style="color:#e8dfd0;">No celular (Android):</b><br>
+    1. Pareia a impressora normalmente em Configurações → Bluetooth do Android (senha 0000 ou 1234)<br>
+    2. Instala o app grátis <b>RawBT</b> na Play Store e escolhe a impressora pareada dentro dele<br>
+    3. No CRM, ao clicar em "Atender" ou no ícone 🖨️ de reimprimir, escolhe "RawBT" na tela de impressão que abrir<br><br>
+    <i style="opacity:.8">Safari/iPhone não tem um caminho direto pra esse tipo de impressora — usa o computador ou um Android nesse caso.</i><br><br>
     Driver/app e materiais da impressora: <a href="https://www.cnfujun.com/d/50" target="_blank" rel="noopener" style="color:#7eb8f7;">www.cnfujun.com/d/50</a><br>
     Dúvidas ou dificuldades com a impressora: <a href="https://www.goldensky.com.br" target="_blank" rel="noopener" style="color:#7eb8f7;">www.goldensky.com.br</a>
   </div>
@@ -106,7 +118,20 @@ IP_LOCAL = _get_ip_local()
 app = Flask(__name__)
 CORS(app)
 
-PRINTER_NAME = "Daruma DR800"
+PRINTER_NAME_PADRAO = "Daruma DR800"
+_ARQ_NOME_IMPRESSORA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "impressora_nome.txt")
+
+def _carregar_nome_impressora():
+    try:
+        with open(_ARQ_NOME_IMPRESSORA, "r", encoding="utf-8") as f:
+            nome = f.read().strip()
+            if nome:
+                return nome
+    except Exception:
+        pass
+    return PRINTER_NAME_PADRAO
+
+PRINTER_NAME = _carregar_nome_impressora()
 CRM_URL      = "https://bsanches-ai.github.io/magapet-crm/"
 CACHE_FILE   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crm_cache.html")
 

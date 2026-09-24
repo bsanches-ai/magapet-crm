@@ -27,7 +27,25 @@ IP_LOCAL = _get_ip_local()
 app = Flask(__name__)
 CORS(app)
 
-PRINTER_NAME = "Daruma DR800"
+# Nome da impressora instalada no Windows. Pra trocar de impressora (ex: a
+# nova Goldensky JP58H) sem precisar editar este arquivo: cria um arquivo
+# de texto chamado "impressora_nome.txt" na mesma pasta deste script, com
+# o nome exato que aparece em Configurações > Impressoras e scanners do
+# Windows, numa linha só. Se esse arquivo não existir, usa o valor abaixo.
+PRINTER_NAME_PADRAO = "Daruma DR800"
+_ARQ_NOME_IMPRESSORA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "impressora_nome.txt")
+
+def _carregar_nome_impressora():
+    try:
+        with open(_ARQ_NOME_IMPRESSORA, "r", encoding="utf-8") as f:
+            nome = f.read().strip()
+            if nome:
+                return nome
+    except Exception:
+        pass
+    return PRINTER_NAME_PADRAO
+
+PRINTER_NAME = _carregar_nome_impressora()
 CRM_URL      = "https://bsanches-ai.github.io/magapet-crm/"
 CACHE_FILE   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crm_cache.html")
 
