@@ -1239,6 +1239,7 @@
       <button class="btn-modal-primary" onclick="parearImpressoraBT()" id="btn-parear-impressora">🔗 Parear impressora</button>
       <button class="btn-modal-confirm" onclick="testarImpressaoBT()" id="btn-testar-impressora" style="display:none;">🧪 Imprimir teste</button>
     </div>
+    <textarea id="impressora-diag" readonly style="display:none;width:100%;margin-top:12px;height:140px;font-family:monospace;font-size:11px;background:#111;color:#8f8;border:1px solid #333;border-radius:6px;padding:8px;"></textarea>
   </div>
 </div>
 
@@ -3291,6 +3292,14 @@ function impressoraBtPreferida() {
 // primeira vez que "Atender"/"Imprimir teste" é clicado, nunca de forma
 // automática/silenciosa. Reconectar num `_btDevice` já escolhido antes NÃO
 // precisa de clique, então funciona normalmente em impressões seguintes.
+// Log de diagnóstico da última conexão — visível também no modal Impressora
+// (campo "impressora-diag"), pra dar pra ler sem precisar abrir o console.
+let _btDiagnostico = '';
+function _btLog(msg) {
+  _btDiagnostico += msg + '\n';
+  console.log('[PRINT][BT]', msg);
+}
+
 async function _btConectar({ pedirNovoPareamento = false } = {}) {
   if (!bluetoothDisponivel()) {
     throw new Error('Bluetooth não suportado neste navegador (use Chrome ou Edge)');
@@ -3298,6 +3307,7 @@ async function _btConectar({ pedirNovoPareamento = false } = {}) {
   if (_btCharacteristic && !pedirNovoPareamento) {
     try { return _btCharacteristic; } catch {}
   }
+  _btDiagnostico = '';
   if (!_btDevice || pedirNovoPareamento) {
     _btDevice = await navigator.bluetooth.requestDevice({
       filters: BT_PRINTER_SERVICE_UUIDS.map(uuid => ({ services: [uuid] })),
@@ -3305,21 +3315,46 @@ async function _btConectar({ pedirNovoPareamento = false } = {}) {
     });
     _btDevice.addEventListener('gattserverdisconnected', () => { _btCharacteristic = null; });
   }
+  _btLog(`Dispositivo: ${_btDevice.name || '(sem nome)'} — ${_btDevice.id}`);
 
   const server = await _btDevice.gatt.connect();
   let service = null;
   for (const svcUuid of BT_PRINTER_SERVICE_UUIDS) {
-    try { service = await server.getPrimaryService(svcUuid); if (service) break; } catch {}
+    try { service = await server.getPrimaryService(svcUuid); if (service) { _btLog(`Serviço encontrado: ${svcUuid}`); break; } } catch {}
   }
-  if (!service) throw new Error('Serviço de impressão não encontrado nessa impressora');
+
+  // Nenhum dos 2 UUIDs conhecidos bateu — varre TODOS os serviços/
+  // características disponíveis pra identificar qual usar (aparece no
+  // diagnóstico do modal pra eu poder ajustar o UUID fixo depois).
+  if (!service) {
+    _btLog('Nenhum serviço conhecido encontrado — varrendo todos os serviços...');
+    const todos = await server.getPrimaryServices();
+    for (const s of todos) {
+      _btLog(`Serviço disponível: ${s.uuid}`);
+      try {
+        const cs = await s.getCharacteristics();
+        for (const c of cs) {
+          _btLog(`  característica: ${c.uuid} (write=${c.properties.write} writeNR=${c.properties.writeWithoutResponse})`);
+        }
+      } catch (e) { _btLog(`  (erro lendo características: ${e.message})`); }
+    }
+    // usa o primeiro serviço que tiver alguma característica gravável
+    for (const s of todos) {
+      const cs = await s.getCharacteristics().catch(() => []);
+      const c = cs.find(x => x.properties.write || x.properties.writeWithoutResponse);
+      if (c) { service = s; break; }
+    }
+  }
+  if (!service) throw new Error('Nenhum serviço com escrita encontrado nessa impressora — veja o diagnóstico');
 
   let char = null;
   for (const charUuid of BT_WRITE_CHAR_UUIDS) {
-    try { char = await service.getCharacteristic(charUuid); if (char) break; } catch {}
+    try { char = await service.getCharacteristic(charUuid); if (char) { _btLog(`Característica encontrada: ${charUuid}`); break; } } catch {}
   }
   if (!char) {
     const chars = await service.getCharacteristics();
     char = chars.find(c => c.properties.write || c.properties.writeWithoutResponse);
+    if (char) _btLog(`Característica gravável escolhida por varredura: ${char.uuid}`);
   }
   if (!char) throw new Error('Característica de escrita não encontrada nessa impressora');
 
@@ -3327,17 +3362,34 @@ async function _btConectar({ pedirNovoPareamento = false } = {}) {
   return _btCharacteristic;
 }
 
+function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 async function _btEnviar(bytes) {
   const char = await _btConectar();
-  const CHUNK = 180; // limite seguro de MTU BLE (a maioria negocia bem menos que 512)
+  // Impressoras térmicas BLE baratas (Goldensky/JP58H e similares) têm buffer
+  // de recepção pequeno e sem controle de fluxo real — mandar rápido demais
+  // (chunk grande, sem pausa) faz elas descartarem dados silenciosamente e
+  // não imprimir nada, sem erro nenhum aparecer no navegador. Por isso aqui
+  // usa chunk pequeno (o padrão de MTU BLE antes de negociação, 20 bytes) e
+  // uma pausa entre cada envio.
+  const CHUNK = 20;
+  const PAUSA_MS = 20;
+  _btLog(`Enviando ${bytes.length} bytes em pedaços de ${CHUNK}...`);
   for (let i = 0; i < bytes.length; i += CHUNK) {
     const parte = bytes.slice(i, i + CHUNK);
-    if (char.properties.writeWithoutResponse) {
-      await char.writeValueWithoutResponse(parte);
-    } else {
-      await char.writeValue(parte);
+    try {
+      if (char.properties.writeWithoutResponse) {
+        await char.writeValueWithoutResponse(parte);
+      } else {
+        await char.writeValue(parte);
+      }
+    } catch (e) {
+      _btLog(`Erro no pedaço ${i}: ${e.message}`);
+      throw e;
     }
+    await _sleep(PAUSA_MS);
   }
+  _btLog('Envio concluído.');
 }
 
 // Monta os comandos ESC/POS equivalentes à ficha impressa hoje via Flask
@@ -3407,6 +3459,17 @@ async function _imprimirViaBluetooth(ag) {
 }
 
 // ---- Modal de configuração da impressora ----
+function _atualizarDiagModal() {
+  const el = document.getElementById('impressora-diag');
+  if (_btDiagnostico) {
+    el.style.display = '';
+    el.value = _btDiagnostico;
+    el.scrollTop = el.scrollHeight;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 function abrirModalImpressora() {
   const pareada = !!_btCharacteristic;
   document.getElementById('impressora-status').textContent = !bluetoothDisponivel()
@@ -3415,6 +3478,7 @@ function abrirModalImpressora() {
   document.getElementById('impressora-bt-preferida').checked = impressoraBtPreferida();
   document.getElementById('btn-testar-impressora').style.display = pareada ? '' : 'none';
   document.getElementById('btn-parear-impressora').style.display = bluetoothDisponivel() ? '' : 'none';
+  _atualizarDiagModal();
   document.getElementById('modalImpressora').classList.add('open');
 }
 
@@ -3430,6 +3494,7 @@ async function parearImpressoraBT() {
   } catch (e) {
     console.error('[PRINT][BT] pareamento:', e);
     showToast('Não deu pra parear: ' + e.message, 'error');
+    abrirModalImpressora();
   }
 }
 
@@ -3445,6 +3510,7 @@ async function testarImpressaoBT() {
     console.error('[PRINT][BT] teste:', e);
     showToast('Erro ao imprimir teste: ' + e.message, 'error');
   }
+  _atualizarDiagModal();
 }
 
 function _imprimirFichaAtendimento(ag) {
